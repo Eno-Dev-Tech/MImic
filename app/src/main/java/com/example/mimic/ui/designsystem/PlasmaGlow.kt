@@ -11,16 +11,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.foundation.Image
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
-import com.example.mimic.R
 import androidx.compose.ui.draw.drawWithCache
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -41,6 +32,17 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.res.imageResource
+import com.example.mimic.R
+import kotlin.math.atan2
+import kotlin.math.sqrt
+import kotlin.math.PI
+import kotlin.math.sin
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.shadow.Shadow
@@ -124,41 +126,53 @@ private fun Modifier.auroraGlyph(alpha: Float): Modifier =
 internal fun plasmaProgressBrush(): Brush =
     Brush.horizontalGradient(listOf(PlasmaCyan, PlasmaViolet, PlasmaPink))
 
+private const val HaloMeshSteps = 32
+
 @Composable
 internal fun Modifier.plasmaArtworkHalo(animate: Boolean): Modifier {
+    val cyan = ImageBitmap.imageResource(R.drawable.plasma_halo_cyan).asAndroidBitmap()
+    val violet = ImageBitmap.imageResource(R.drawable.plasma_halo_violet).asAndroidBitmap()
+    val magenta = ImageBitmap.imageResource(R.drawable.plasma_halo_magenta).asAndroidBitmap()
     val motion = if (animate) {
-        rememberInfiniteTransition(label = "Plasma ribbon").animateFloat(
-            0f, (2 * PI).toFloat(), infiniteRepeatable(tween(5400, easing = androidx.compose.animation.core.LinearEasing)),
-            label = "Plasma phase",
+        rememberInfiniteTransition(label = "Plasma waves").animateFloat(
+            0f, (2 * PI).toFloat(), infiniteRepeatable(tween(14000, easing = LinearEasing)),
+            label = "Plasma wave phase",
         )
     } else null
     return drawWithCache {
-        val center = Offset(size.width / 2f, size.height / 2f)
-        val ribbon = Path()
-        val brush = Brush.sweepGradient(
-            listOf(PlasmaCyan, PlasmaViolet, PlasmaPink, PlasmaCyan, PlasmaViolet, PlasmaPink, PlasmaCyan),
-            center = center,
-        )
+        val layers = listOf(violet, magenta, cyan)
+        val side = HaloMeshSteps + 1
+        val count = side * side
+        val xs = FloatArray(count) { (it % side).toFloat() / HaloMeshSteps - .5f }
+        val ys = FloatArray(count) { (it / side).toFloat() / HaloMeshSteps - .5f }
+        val angles = FloatArray(count) { atan2(ys[it], xs[it]) }
+        val envelope = FloatArray(count) {
+            val radius = sqrt(xs[it] * xs[it] + ys[it] * ys[it])
+            ((radius - .19f) / .16f).coerceIn(0f, 1f)
+        }
+        val vertices = FloatArray(2 * count)
+        val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+        val speeds = intArrayOf(2, -3, 1)
+        val diameter = size.minDimension * 1.60f
+        val origin = Offset(size.width / 2f, size.height / 2f)
         onDrawBehind {
             val phase = motion?.value ?: 0f
-            val unit = size.minDimension
-            if (unit <= 0f) return@onDrawBehind
-            for (strand in 0..2) {
-                ribbon.reset()
-                for (i in 0 until 84) {
-                    val angle = (i * 2 * PI / 84).toFloat()
-                    val wave = sin(3f * angle + phase + strand * .63f) * .027f +
-                        cos(5f * angle - phase + strand * .85f) * .014f
-                    val radius = unit * (.524f + strand * .012f + wave)
-                    val x = center.x + cos(angle) * radius
-                    val y = center.y + sin(angle) * radius
-                    if (i == 0) ribbon.moveTo(x, y) else ribbon.lineTo(x, y)
+            drawIntoCanvas { canvas ->
+                for (layer in layers.indices) {
+                    val time = phase * speeds[layer]
+                    for (i in 0 until count) {
+                        val angle = angles[i]
+                        val wave = sin((3 + layer) * angle + time)
+                        val ripple = sin((7 - layer) * angle - time)
+                        val radial = 1f + envelope[i] * (.11f * wave + .045f * ripple)
+                        val shear = envelope[i] * .022f * sin(4 * angle - time)
+                        vertices[2 * i] = origin.x + diameter * (xs[i] * radial - ys[i] * shear)
+                        vertices[2 * i + 1] = origin.y + diameter * (ys[i] * radial + xs[i] * shear)
+                    }
+                    canvas.nativeCanvas.drawBitmapMesh(
+                        layers[layer], HaloMeshSteps, HaloMeshSteps, vertices, 0, null, 0, paint,
+                    )
                 }
-                ribbon.close()
-                drawPath(ribbon, brush, alpha = .17f, style = Stroke(unit * .058f))
-                drawPath(ribbon, brush, alpha = .36f, style = Stroke(unit * .023f))
-                drawPath(ribbon, brush, alpha = if (strand == 1) .9f else .56f,
-                    style = Stroke(unit * if (strand == 1) .009f else .004f))
             }
         }
     }
@@ -177,10 +191,9 @@ internal fun PlasmaGlowBackdrop(modifier: Modifier, animate: Boolean) {
         null
     }
     Box(modifier) {
-        Image(painterResource(R.drawable.plasma_nebula), contentDescription = null,
-            modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
         Canvas(Modifier.matchParentSize()) {
             if (size.minDimension <= 0f) return@Canvas
+            drawRect(Brush.verticalGradient(listOf(Color(0xFF26093F), Color(0xFF100722), Color(0xFF080610))))
             val phase = drift?.value ?: 0.5f
             drawRect(Brush.radialGradient(
                 colors = listOf(Color(0x555F27BE), Color.Transparent),

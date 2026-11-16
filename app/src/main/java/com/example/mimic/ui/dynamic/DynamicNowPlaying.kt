@@ -279,7 +279,7 @@ fun DynamicNowPlayingScreen(
             // Artwork — crossfades between songs; swipe sideways to skip.
             var dragX by remember { mutableFloatStateOf(0f) }
             val threshold = with(LocalDensity.current) { 72.dp.toPx() }
-            Box(Modifier.weight(1f, fill = false), contentAlignment = Alignment.Center) {
+            Box(Modifier.weight(1f, fill = false).then(if (plasmaGlow) Modifier.padding(vertical = 38.dp) else Modifier), contentAlignment = Alignment.Center) {
                 AnimatedContent(
                     targetState = song,
                     contentKey = { it?.id },
@@ -291,7 +291,7 @@ fun DynamicNowPlayingScreen(
                 ) { s ->
                     DynamicArtwork(
                         s, config,
-                        Modifier.fillMaxWidth(config.artSize.fraction)
+                        Modifier.fillMaxWidth(if (plasmaGlow) config.artSize.fraction.coerceIn(.48f, .60f) else config.artSize.fraction)
                             .aspectRatio(1f, matchHeightConstraintsFirst = true)
                             .graphicsLayer { translationX = dragX * 0.6f }
                             .then(if (plasmaGlow) Modifier.plasmaArtworkHalo(state.isPlaying && !reduced) else Modifier)
@@ -468,7 +468,7 @@ fun DynamicNowPlayingScreen(
 
 @Composable
 fun DynamicArtwork(song: Song?, config: DynamicPlayerConfig, modifier: Modifier) {
-    val shape = RoundedCornerShape(config.artShape.cornerDp.dp)
+    val shape = if (LocalPlasmaGlow.current) CircleShape else RoundedCornerShape(config.artShape.cornerDp.dp)
     Box(
         modifier
             .then(if (LocalPlasmaGlow.current) Modifier.plasmaArtworkFrame(shape) else Modifier)

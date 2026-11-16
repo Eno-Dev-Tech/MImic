@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.8.0-beta.5
+
+- Updated the existing Plasma Glow preset with a larger cyan, violet, and magenta wireframe halo. Its layers ripple independently during playback.
+- Album covers remain circular as tracks change in Classic and Dynamic Now Playing.
+- The volume slider uses its original vertical thumb and simple waveform display.
+
+
 ## 4.8.0-beta.4
 
 - Added Plasma Glow as a separate Theme Studio preset.

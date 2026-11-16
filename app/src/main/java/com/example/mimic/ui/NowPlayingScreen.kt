@@ -168,7 +168,11 @@ fun NowPlayingScreen(
         PlayerLayout.CLASSIC, PlayerLayout.DYNAMIC -> config.artworkSize.fraction()
     }
     val corner = if (config.artworkShape == ArtworkShape.CIRCLE) 1000 else config.artworkShape.cornerDp()
-    val artShape = if (config.artworkShape == ArtworkShape.SQUIRCLE) RoundedRectangle(corner.dp) else null
+    val artShape = when {
+        plasmaGlow -> androidx.compose.foundation.shape.CircleShape
+        config.artworkShape == ArtworkShape.SQUIRCLE -> RoundedRectangle(corner.dp)
+        else -> null
+    }
 
     // Opaque base fills edge-to-edge (behind the system bars for an immersive look); the content
     // Column is inset with systemBarsPadding so the header clears the status bar and the controls
@@ -221,11 +225,11 @@ fun NowPlayingScreen(
         val threshold = with(androidx.compose.ui.platform.LocalDensity.current) { 72.dp.toPx() }
         // The artwork takes what's left after the text + controls, so on a small screen it shrinks
         // instead of pushing the controls and the action row off the bottom.
-        Box(Modifier.weight(1f, fill = false), contentAlignment = Alignment.Center) {
+        Box(Modifier.weight(1f, fill = false).then(if (plasmaGlow) Modifier.padding(vertical = 38.dp) else Modifier), contentAlignment = Alignment.Center) {
         AlbumArt(
             song,
             modifier = Modifier
-                .fillMaxWidth(artworkFraction)
+                .fillMaxWidth(if (plasmaGlow) artworkFraction.coerceIn(.48f, .60f) else artworkFraction)
                 .aspectRatio(1f, matchHeightConstraintsFirst = true)
                 .graphicsLayer {
                     translationX = dragX * 0.6f

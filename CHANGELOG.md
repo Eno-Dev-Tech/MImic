@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.8.0-beta.4
+
+- Added Plasma Glow as a separate Theme Studio preset.
+- Now Playing has a nebula backdrop and a cyan, violet, and pink halo that moves during playback and rests when paused.
+- Playback, shortcut, and navigation icons use an aurora gradient on dark controls.
+- Added a draggable waveform slider for media volume.
+
+
 ## 4.8.0-beta.3
 
 - Studio Hardware now uses the textured charcoal Now Playing background, raised graphite controls, and orange-to-yellow symbols.

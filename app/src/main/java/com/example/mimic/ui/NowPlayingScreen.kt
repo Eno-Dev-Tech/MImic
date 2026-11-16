@@ -72,6 +72,13 @@ import com.example.mimic.ui.designsystem.LocalDepth
 import com.example.mimic.ui.designsystem.depthPanel
 import com.example.mimic.ui.designsystem.matteGrain
 import com.example.mimic.ui.designsystem.mattePlayerBackground
+import com.example.mimic.ui.designsystem.LocalPlasmaGlow
+import com.example.mimic.ui.designsystem.PlasmaGlowBackdrop
+import com.example.mimic.ui.designsystem.plasmaArtworkFrame
+import com.example.mimic.ui.designsystem.plasmaArtworkHalo
+import com.example.mimic.ui.designsystem.PlasmaButton
+import com.example.mimic.ui.player.PlasmaVolumeWave
+import com.example.mimic.ui.designsystem.plasmaSurface
 import com.example.mimic.data.resolvedVolume
 import com.example.mimic.data.ControlStyle
 import com.example.mimic.data.PlayerBackground
@@ -137,7 +144,8 @@ fun NowPlayingScreen(
     // translucent, so they are always layered ON TOP of an opaque base; otherwise the screen
     // underneath bleeds through (the 2.8.4 "Now Playing over the settings page" bug).
     val matteAmber = LocalDepth.current.matteAmber
-    val gradientOverlay = if (background == PlayerBackground.GRADIENT && !matteAmber) {
+    val plasmaGlow = LocalPlasmaGlow.current
+    val gradientOverlay = if (background == PlayerBackground.GRADIENT && !matteAmber && !plasmaGlow) {
         Modifier.background(
             Brush.verticalGradient(
                 listOf(
@@ -176,6 +184,7 @@ fun NowPlayingScreen(
             .then(gradientOverlay),
     ) {
         if (!matteAmber && background == PlayerBackground.BLURRED_ARTWORK) BlurredArtwork(song)
+        if (plasmaGlow) PlasmaGlowBackdrop(Modifier.matchParentSize(), state.isPlaying && env.motionScale > 0f)
     }
     CompositionLocalProvider(LocalGlassBackdrop provides if (liveGlass) playerBackdrop else null) {
     Column(
@@ -224,7 +233,9 @@ fun NowPlayingScreen(
                 }
                 // 3D: the cover sits in a raised frame that casts the style's shadow.
                 .then(
-                    if (tactile) {
+                    if (plasmaGlow) {
+                        Modifier.plasmaArtworkHalo(state.isPlaying && env.motionScale > 0f).plasmaArtworkFrame(artShape ?: androidx.compose.foundation.shape.RoundedCornerShape(corner.dp))
+                    } else if (tactile) {
                         val frame = artShape ?: androidx.compose.foundation.shape.RoundedCornerShape(corner.dp)
                         // Reference 01: the cover sits in a thick raised rim; reference 02: it just casts a shadow.
                         if (LocalDepth.current.softSurfaces) Modifier.depthPanel(frame, elevation = 12.dp).padding(12.dp)
@@ -290,7 +301,11 @@ fun NowPlayingScreen(
                     }
                 }
             }
-            if (tactile) {
+            if (plasmaGlow) {
+                PlasmaButton(if (state.isCurrentFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    "Like", onToggleFavorite, active = state.isCurrentFavorite, enabled = song != null,
+                    state = if (state.isCurrentFavorite) "Liked" else "Not liked")
+            } else if (tactile) {
                 DepthIconButton(
                     if (state.isCurrentFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                     contentDescription = "Like",
@@ -358,7 +373,10 @@ fun NowPlayingScreen(
 
         // 4.8: the phone's media volume as a rotary dial (or slider). Radio's live row has its own.
         val volumeMode = config.resolvedVolume(if (tactile) ControlStyle.TACTILE else controls)
-        if (!controlDeck && volumeMode != null && !state.isLive) {
+        if (plasmaGlow && !state.isLive && config.volumeControl != com.example.mimic.data.VolumeControl.OFF) {
+            Spacer(Modifier.height(12.dp))
+            PlasmaVolumeWave()
+        } else if (!plasmaGlow && !controlDeck && volumeMode != null && !state.isLive) {
             val volume = com.example.mimic.player.rememberMediaVolume()
             // Short screens get the slim slider so the artwork keeps its room.
             val roomy = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp >= 680
@@ -375,7 +393,9 @@ fun NowPlayingScreen(
 /** Top-bar action: a glass or 3D circle on those control styles, else the plain icon button. */
 @Composable
 private fun TopAction(style: ControlStyle, icon: ImageVector, label: String, onClick: () -> Unit, tactile: Boolean = false) {
-    if (tactile) {
+    if (LocalPlasmaGlow.current) {
+        PlasmaButton(icon, label, onClick)
+    } else if (tactile) {
         DepthIconButton(icon, label, onClick, size = 48.dp, iconSize = 22.dp)
     } else if (style == ControlStyle.GLASS) {
         GlassIconButton(icon, label, onClick, size = 48.dp, iconSize = 22.dp)
@@ -427,6 +447,10 @@ private fun Controls(
     onShuffle: () -> Unit,
     onRepeat: () -> Unit,
 ) {
+    if (LocalPlasmaGlow.current) {
+        PlasmaTransport(state, config.showShuffleRepeat, onPrevious, onPlayPause, onNext, onShuffle, onRepeat)
+        return
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -524,13 +548,48 @@ private fun Controls(
     }
 }
 
+@Composable
+internal fun PlasmaTransport(
+    state: PlayerUiState,
+    showShuffleRepeat: Boolean,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onShuffle: () -> Unit,
+    onRepeat: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().plasmaSurface(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (showShuffleRepeat) {
+            PlasmaButton(Icons.Default.Shuffle, "Shuffle", onShuffle, iconSize = 19.dp,
+                active = state.shuffle, state = if (state.shuffle) "On" else "Off")
+        }
+        PlasmaButton(Icons.Default.SkipPrevious, "Previous", onPrevious, iconSize = 26.dp)
+        PlasmaButton(if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+            if (state.isPlaying) "Pause" else "Play", onPlayPause, size = 66.dp, iconSize = 34.dp, active = true)
+        PlasmaButton(Icons.Default.SkipNext, "Next", onNext, iconSize = 26.dp)
+        if (showShuffleRepeat) {
+            val repeatOne = state.repeatMode == Player.REPEAT_MODE_ONE
+            val repeatOn = state.repeatMode != Player.REPEAT_MODE_OFF
+            PlasmaButton(if (repeatOne) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                "Repeat", onRepeat, iconSize = 19.dp, active = repeatOn,
+                state = if (repeatOne) "Repeat one" else if (repeatOn) "Repeat all" else "Off")
+        }
+    }
+}
+
 /** Labeled icon action under the controls. */
 @Composable
 private fun BottomAction(icon: ImageVector, label: String, onClick: () -> Unit, highlighted: Boolean = false, description: String = label, tactile: Boolean = false) {
     val tint = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-    if (tactile) {
+    if (tactile || LocalPlasmaGlow.current) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            DepthIconButton(icon, description, onClick, size = 44.dp, iconSize = 20.dp, selected = highlighted)
+            if (LocalPlasmaGlow.current) PlasmaButton(icon, description, onClick, iconSize = 20.dp, active = highlighted)
+            else DepthIconButton(icon, description, onClick, size = 44.dp, iconSize = 20.dp, selected = highlighted)
             Spacer(Modifier.height(4.dp))
             Text(label, style = MaterialTheme.typography.labelSmall, color = tint, maxLines = 1)
         }
@@ -548,7 +607,7 @@ private fun BottomAction(icon: ImageVector, label: String, onClick: () -> Unit, 
 }
 
 @Composable
-private fun SeekBar(state: PlayerUiState, onSeek: (Long) -> Unit, haptic: Boolean = true) {
+internal fun SeekBar(state: PlayerUiState, onSeek: (Long) -> Unit, haptic: Boolean = true) {
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableStateOf(0f) }

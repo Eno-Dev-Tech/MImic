@@ -130,11 +130,12 @@ fun ThemeStudioScreen(
     var confirmRestore by remember { mutableStateOf(false) }
     var overflow by remember { mutableStateOf(false) }
 
-    val canonical = ThemeRegistry.CANONICAL_IDS.mapNotNull { id -> themes.firstOrNull { it.id == id } }
+    val featuredIds = listOf(ThemeRegistry.PLASMA_GLOW_ID) + ThemeRegistry.CANONICAL_IDS
+    val canonical = featuredIds.mapNotNull { id -> themes.firstOrNull { it.id == id } }
     val flagship = themes.firstOrNull { it.id == "mimic_liquid_glass" }
     val aura = themes.firstOrNull { it.id == ThemeRegistry.AURA_ID }
     val legacy = themes.filter {
-        it.builtIn && it.id != "mimic_liquid_glass" && it.id != ThemeRegistry.AURA_ID && it.id !in ThemeRegistry.CANONICAL_IDS &&
+        it.builtIn && it.id != "mimic_liquid_glass" && it.id != ThemeRegistry.AURA_ID && it.id !in featuredIds &&
             it.id !in ThemeRegistry.DEPTH_IDS
     }
     val hardwareThemes = themes.filter { it.id in ThemeRegistry.DEPTH_IDS }

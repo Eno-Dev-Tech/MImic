@@ -97,6 +97,10 @@ private fun BottomBar(navController: NavHostController, navStyle: NavStyle, cont
     val owner = TopLevelNavigation.owningTab(routes)
     val goTo: (TopLevel) -> Unit = { tab -> TopLevelNavigation.navigate(navController, tab)?.let(onReselect) }
     val compact = navStyle == NavStyle.COMPACT
+    if (com.example.mimic.ui.designsystem.LocalPlasmaGlow.current) {
+        com.example.mimic.ui.navigation.PlasmaNavigation(owner, goTo, compact, Modifier.navigationBarsPadding())
+        return
+    }
     if (controlDeck) {
         ControlDeckNavigation(owner, goTo, compact, Modifier.navigationBarsPadding())
         return
@@ -696,7 +700,9 @@ fun MimicApp(viewModel: PlayerViewModel) {
             onEqEnabledChange = setDeckEq,
             topEndActions = {
                 com.example.mimic.cast.CastButton(MaterialTheme.colorScheme.onBackground)
-                if (settings.themeId == ThemeRegistry.CONTROL_DECK_ID) {
+                if (settings.themeId == ThemeRegistry.PLASMA_GLOW_ID) {
+                    com.example.mimic.ui.designsystem.PlasmaButton(androidx.compose.material.icons.Icons.Default.Share, "Share song", { uiState.currentSong?.let(shareSong) })
+                } else if (settings.themeId == ThemeRegistry.CONTROL_DECK_ID) {
                     com.example.mimic.ui.components.DepthIconButton(
                         androidx.compose.material.icons.Icons.Default.Share, "Share song", { uiState.currentSong?.let(shareSong) },
                     )

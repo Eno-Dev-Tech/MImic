@@ -118,6 +118,14 @@ import com.example.mimic.player.PlayerUiState
 import com.example.mimic.player.PlayerViewModel
 import com.example.mimic.ui.components.formatDuration
 import com.example.mimic.ui.designsystem.LocalGlass
+import com.example.mimic.ui.designsystem.LocalPlasmaGlow
+import com.example.mimic.ui.designsystem.PlasmaGlowBackdrop
+import com.example.mimic.ui.designsystem.plasmaArtworkFrame
+import com.example.mimic.ui.designsystem.plasmaArtworkHalo
+import com.example.mimic.ui.designsystem.PlasmaButton
+import com.example.mimic.ui.PlasmaTransport
+import com.example.mimic.ui.player.PlasmaVolumeWave
+import com.example.mimic.ui.SeekBar
 import com.example.mimic.ui.designsystem.blockTouchesBehind
 
 /** Transport + navigation callbacks of the Dynamic player (all actions go to the one Media3 player). */
@@ -237,9 +245,13 @@ fun DynamicNowPlayingScreen(
     val reduced = LocalGlass.current.motionScale == 0f
     val ms = config.transitionMs(reduced)
 
+    val plasmaGlow = LocalPlasmaGlow.current
     Box(Modifier.fillMaxSize().blockTouchesBehind()) {
         if (matteAmber) Box(Modifier.fillMaxSize().mattePlayerBackground())
         else DynamicBackground(song, scheme, config)
+        if (plasmaGlow) {
+            PlasmaGlowBackdrop(Modifier.matchParentSize(), state.isPlaying && config.animatesBackground(reduced))
+        }
         if (lyricsOpen) {
             DynamicLyrics(vm, state, scheme, onClose = { lyricsOpen = false })
             return@Box
@@ -282,6 +294,7 @@ fun DynamicNowPlayingScreen(
                         Modifier.fillMaxWidth(config.artSize.fraction)
                             .aspectRatio(1f, matchHeightConstraintsFirst = true)
                             .graphicsLayer { translationX = dragX * 0.6f }
+                            .then(if (plasmaGlow) Modifier.plasmaArtworkHalo(state.isPlaying && !reduced) else Modifier)
                             .pointerInput(actions) {
                                 detectHorizontalDragGestures(
                                     onDragEnd = {
@@ -320,7 +333,11 @@ fun DynamicNowPlayingScreen(
                         }
                     }
                 }
-                if (com.example.mimic.ui.designsystem.LocalDepth.current.let { it.equipment || it.matteAmber }) {
+                if (plasmaGlow) {
+                    PlasmaButton(if (state.isCurrentFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                        "Like", actions.onToggleFavorite, enabled = song != null, active = state.isCurrentFavorite,
+                        state = if (state.isCurrentFavorite) "Liked" else "Not liked")
+                } else if (com.example.mimic.ui.designsystem.LocalDepth.current.let { it.equipment || it.matteAmber }) {
                     com.example.mimic.ui.components.DepthIconButton(
                         if (state.isCurrentFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = "Like",
@@ -339,7 +356,11 @@ fun DynamicNowPlayingScreen(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            if (controlDeck) {
+            if (plasmaGlow) {
+                if (state.isLive) com.example.mimic.ui.radio.LiveRow(state, actions.radioFlag, scheme.onBackground, scheme.muted, scheme.accent, actions.onReconnect)
+                else SeekBar(state, actions.onSeek, hapticSeek)
+                PlasmaTransport(state, true, actions.onPrevious, actions.onPlayPause, actions.onNext, actions.onShuffle, actions.onRepeat)
+            } else if (controlDeck) {
                 com.example.mimic.ui.player.ControlDeckPanel(
                     state, actions.onSeek, actions.onPrevious, actions.onPlayPause,
                     actions.onNext, actions.onShuffle, actions.onRepeat,
@@ -413,13 +434,13 @@ fun DynamicNowPlayingScreen(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (matteAmber) RoundAction(Icons.Default.Lyrics, "Lyrics", scheme, false, { lyricsOpen = true }) else IconButton(onClick = { lyricsOpen = true }) { Icon(Icons.Default.Lyrics, "Lyrics", tint = scheme.onBackground) }
-                if (matteAmber) RoundAction(Icons.AutoMirrored.Filled.QueueMusic, "Queue", scheme, false, actions.onOpenQueue) else IconButton(onClick = actions.onOpenQueue) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue", tint = scheme.onBackground) }
+                if (matteAmber || plasmaGlow) RoundAction(Icons.Default.Lyrics, "Lyrics", scheme, false, { lyricsOpen = true }) else IconButton(onClick = { lyricsOpen = true }) { Icon(Icons.Default.Lyrics, "Lyrics", tint = scheme.onBackground) }
+                if (matteAmber || plasmaGlow) RoundAction(Icons.AutoMirrored.Filled.QueueMusic, "Queue", scheme, false, actions.onOpenQueue) else IconButton(onClick = actions.onOpenQueue) { Icon(Icons.AutoMirrored.Filled.QueueMusic, "Queue", tint = scheme.onBackground) }
                 castButton(scheme.onBackground)
-                if (matteAmber) RoundAction(Icons.Default.Share, "Share song", scheme, false, actions.onShare)
+                if (matteAmber || plasmaGlow) RoundAction(Icons.Default.Share, "Share song", scheme, false, actions.onShare)
                 else IconButton(onClick = actions.onShare, enabled = song != null) { Icon(Icons.Default.Share, "Share song", tint = scheme.onBackground) }
                 Box {
-                    if (matteAmber) RoundAction(Icons.Default.MoreVert, "More options", scheme, false, { menu = true }) else IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More options", tint = scheme.onBackground) }
+                    if (matteAmber || plasmaGlow) RoundAction(Icons.Default.MoreVert, "More options", scheme, false, { menu = true }) else IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More options", tint = scheme.onBackground) }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
                             text = { Text(if (sleepActive) "Sleep timer (on)" else "Sleep timer") },
@@ -436,6 +457,10 @@ fun DynamicNowPlayingScreen(
                     }
                 }
             }
+            if (plasmaGlow && !state.isLive && volumeMode != null) {
+                Spacer(Modifier.height(12.dp))
+                PlasmaVolumeWave()
+            }
             Spacer(Modifier.height(16.dp))
         }
     }
@@ -445,7 +470,9 @@ fun DynamicNowPlayingScreen(
 fun DynamicArtwork(song: Song?, config: DynamicPlayerConfig, modifier: Modifier) {
     val shape = RoundedCornerShape(config.artShape.cornerDp.dp)
     Box(
-        modifier.graphicsLayer { shadowElevation = 28f; this.shape = shape; clip = true }
+        modifier
+            .then(if (LocalPlasmaGlow.current) Modifier.plasmaArtworkFrame(shape) else Modifier)
+            .graphicsLayer { shadowElevation = 28f; this.shape = shape; clip = true }
             .background(Color.White.copy(alpha = 0.08f)),
         contentAlignment = Alignment.Center,
     ) {
@@ -458,6 +485,10 @@ fun DynamicArtwork(song: Song?, config: DynamicPlayerConfig, modifier: Modifier)
 
 @Composable
 fun RoundAction(icon: ImageVector, label: String, scheme: AnimatedScheme, glass: Boolean, onClick: () -> Unit, size: Int = 44) {
+    if (LocalPlasmaGlow.current) {
+        PlasmaButton(icon, label, onClick, size = maxOf(size, 48).dp)
+        return
+    }
     if (com.example.mimic.ui.designsystem.LocalDepth.current.let { it.equipment || it.matteAmber }) {
         com.example.mimic.ui.components.DepthIconButton(icon, label, onClick, size = maxOf(size, 44).dp, iconSize = (size * 0.5f).dp)
         return

@@ -22,6 +22,8 @@ import com.example.mimic.ui.designsystem.depthPalette
 import com.example.mimic.ui.designsystem.FontChoice
 import com.example.mimic.ui.designsystem.GlassEnv
 import com.example.mimic.ui.designsystem.LocalGlass
+import com.example.mimic.ui.designsystem.LocalPlasmaGlow
+import com.example.mimic.ui.designsystem.ThemeRegistry
 import com.example.mimic.ui.designsystem.ThemeDefinition
 import com.example.mimic.ui.designsystem.ThemeStyle
 import com.example.mimic.ui.designsystem.toColorScheme
@@ -67,7 +69,11 @@ fun MImicTheme(
     val env = remember(style, quality, colors.isDark, reducedMotion) {
         GlassEnv(style = style, quality = quality, isDarkTheme = colors.isDark, reducedMotion = reducedMotion)
     }
-    CompositionLocalProvider(LocalGlass provides env, LocalDepth provides depth) {
+    CompositionLocalProvider(
+        LocalGlass provides env,
+        LocalDepth provides depth,
+        LocalPlasmaGlow provides (theme.id == ThemeRegistry.PLASMA_GLOW_ID),
+    ) {
         MaterialTheme(
             colorScheme = scheme,
             typography = typography,

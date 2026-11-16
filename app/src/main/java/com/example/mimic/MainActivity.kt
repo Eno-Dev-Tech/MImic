@@ -52,7 +52,9 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
             val activeTheme by viewModel.activeTheme.collectAsStateWithLifecycle()
             val adaptiveSeed by viewModel.adaptiveSeed.collectAsStateWithLifecycle()
-            if (com.example.mimic.ui.designsystem.ThemeRegistry.usesHardwareControls(activeTheme.id)) {
+            if (com.example.mimic.ui.designsystem.ThemeRegistry.usesHardwareControls(activeTheme.id) ||
+                activeTheme.id == com.example.mimic.ui.designsystem.ThemeRegistry.PLASMA_GLOW_ID
+            ) {
                 androidx.compose.runtime.DisposableEffect(Unit) {
                     val bars = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
                     val previousAppearance = bars.isAppearanceLightStatusBars

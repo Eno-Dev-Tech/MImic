@@ -215,6 +215,10 @@ object ThemeRegistry {
     ) = ThemeDefinition(id, name, true, ThemeColors(primary, secondary, background, surface, elevated, text, text2, false), style)
 
     val presets: List<ThemeDefinition> = listOf(
+        dark(PLASMA_GLOW_ID, "Plasma Glow", 0xFFEAA7FF, 0xFF83CAFF, 0xFF0B0816, 0xFF191027, 0xFF2A1A3C,
+            text = 0xFFFAF2FF, text2 = 0xFFCEC0DB,
+            style = ThemeStyle(gradientBackground = true, gradientColor = 0xFF27123C, cornerRadius = 28,
+                controlShape = ControlShape.CAPSULE)),
         dark(CONTROL_DECK_ID, "Studio Hardware", 0xFFDCB7FF, 0xFFB2A1C8, 0xFF1D1429, 0xFF211B29, 0xFF312739, text = 0xFFF6EFFB, text2 = 0xFFC5B8D0, style = SKEUO.copy(depth = DepthStyle.MATTE_AMBER, albumAdaptive = true)),
         // ---- MImic Liquid Glass flagship, then the 14 canonical MImic 2.9 presets ----
         dark("mimic_liquid_glass", "MImic Liquid Glass", 0xFF8AB4FF, 0xFFB79CFF, 0xFF080B12, 0xFF121826, 0xFF1C2436, text = 0xFFF3F6FC, text2 = 0xFFAFB9CC, style = GLASS_MIMIC),
@@ -246,6 +250,7 @@ object ThemeRegistry {
     const val DEFAULT_ID = "emerald"
     const val AURA_ID = "floating_aura"
     const val CONTROL_DECK_ID = "control_deck"
+    const val PLASMA_GLOW_ID = "plasma_glow"
     private const val RETIRED_MATTE_AMBER_ID = "matte_amber_3d"
 
     /** The 14 presets from the 2.9 brief, in display order. */

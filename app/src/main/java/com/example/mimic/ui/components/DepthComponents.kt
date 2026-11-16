@@ -5,6 +5,8 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -258,6 +260,33 @@ fun MimicSlider(
     colors: SliderColors? = null,
 ) {
     val d = LocalDepth.current
+    if (com.example.mimic.ui.designsystem.LocalPlasmaGlow.current) {
+        val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
+        Slider(
+            value = value, onValueChange = onValueChange, modifier = modifier, enabled = enabled,
+            valueRange = valueRange, steps = steps, onValueChangeFinished = onValueChangeFinished,
+            thumb = {
+                Box(Modifier.size(13.dp)
+                    .background(Color(0xFFE5DCFF).copy(alpha = if (enabled) 1f else .5f), CircleShape)
+                    .border(2.dp, Color(0xFFA084FF), CircleShape))
+            },
+            track = { state ->
+                Canvas(Modifier.fillMaxWidth().height(16.dp)) {
+                    val start = if (rtl) Offset(size.width, center.y) else Offset(0f, center.y)
+                    val end = Offset(size.width - start.x, center.y)
+                    drawLine(Color(0xFF393348), start, end, 3.dp.toPx(), StrokeCap.Round)
+                    val fraction = state.fraction()
+                    if (fraction > 0f) {
+                        val head = start + (end - start) * fraction
+                        val brush = com.example.mimic.ui.designsystem.plasmaProgressBrush()
+                        drawLine(brush, start, head, 8.dp.toPx(), StrokeCap.Round, alpha = .20f)
+                        drawLine(brush, start, head, 3.dp.toPx(), StrokeCap.Round, alpha = if (enabled) 1f else .45f)
+                    }
+                }
+            },
+        )
+        return
+    }
     if (!d.on) {
         Slider(
             value = value, onValueChange = onValueChange, modifier = modifier, enabled = enabled,

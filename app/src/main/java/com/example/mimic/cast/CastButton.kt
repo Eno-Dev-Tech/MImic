@@ -9,6 +9,8 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import com.example.mimic.ui.designsystem.LocalDepth
+import com.example.mimic.ui.designsystem.LocalPlasmaGlow
+import com.example.mimic.ui.designsystem.plasmaSurface
 import com.example.mimic.ui.designsystem.depthControl
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cast
@@ -38,7 +40,11 @@ import com.google.android.gms.cast.framework.CastButtonFactory
 fun CastButton(tint: Color, modifier: Modifier = Modifier) {
     val depth = LocalDepth.current
     val castTint = if (depth.matteAmber) depth.c(depth.glow) else tint
-    val body = if (depth.matteAmber) modifier.depthControl(CircleShape) else modifier
+    val body = when {
+        depth.matteAmber -> modifier.depthControl(CircleShape)
+        LocalPlasmaGlow.current -> modifier.plasmaSurface(CircleShape)
+        else -> modifier
+    }
     val context = LocalContext.current
     val cast = remember { (context.applicationContext as MimicApplication).container.castController }
     val ok = remember { cast.ensureInitialized() }

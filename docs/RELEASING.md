@@ -1,6 +1,6 @@
 # Releasing MImic
 
-Releases are GitHub Releases of <https://github.com/enoluca22-dota2/MImic>. The app's
+Releases are GitHub Releases of <https://github.com/Eno-Dev-Tech/MImic>. The app's
 Settings → App Updates reads them, so **every release must follow these rules** or phones won't
 see (or won't accept) it.
 

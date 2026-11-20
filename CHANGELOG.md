@@ -1,3 +1,15 @@
+## 4.8.0
+
+- Home discovery works without signing in: new music, song recommendations, and
+  suggested albums/playlists. Choose Worldwide, UK, USA or Albania on Home.
+- New music is sorted by recent YouTube upload dates; upload dates may differ from
+  original release dates. Country choices are music-search preferences.
+- SponsorBlock, reviewed Spotify/playlist CSV import, and calendar listening recaps.
+- Preserved Plasma Glow, Black & Orange and all existing native playback, Navidrome,
+  offline, theme and data features.
+- Published as a standard release so both Stable and Beta update channels can find it.
+- Future update checks use the canonical Eno-Dev-Tech/MImic repository. Earlier apps'
+  repository URL still redirects to this repository.
 ## 4.8.0-beta.7 — private Home discovery (2026-11-20)
 
 - Home now includes New music, Recommended songs, and Suggested albums & playlists.

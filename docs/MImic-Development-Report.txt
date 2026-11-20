@@ -1205,3 +1205,10 @@ repository is Eno-Dev-Tech/MImic (public), on release/4.8.0-beta.7. Earlier priv
 build/no-publication notes above describe the state before this authorization.
 Signing keys, credentials, generated APKs, IDE state and scratch files are excluded
 from the source commit. No APK release is part of this source push.
+
+PHONE UPDATER RELEASE — 2026-11-20
+The owner authorized publishing signed APKs after finding that a source-branch push
+alone does not create an updater release. Version 4.8.0 is a standard release for
+both Stable and Beta channels; the canonical update repository is Eno-Dev-Tech/MImic.
+The old repository API URL was verified to redirect anonymously with HTTP 200.
+Publishing uses scripts/release.sh with checksums, original signing key and named ABI assets.

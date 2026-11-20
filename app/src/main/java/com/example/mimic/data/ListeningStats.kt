@@ -21,6 +21,28 @@ data class ListeningStats(
     companion object {
         const val DAY_MS = 86_400_000L
 
+        /** Musify-inspired monthly/annual recap, computed from existing MImic history.
+         * Calendar boundaries use the device's time zone, including DST changes.
+         * No historical data is converted or overwritten; duration remains an estimate.
+         */
+        fun calendarRecap(history: List<PlayHistoryEntity>, songs: List<Song>, now: Long, annual: Boolean, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): ListeningStats {
+            val today = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
+            val start = if (annual) today.withDayOfYear(1) else today.withDayOfMonth(1)
+            val since = start.atStartOfDay(zone).toInstant().toEpochMilli()
+            val filtered = history.filter { it.playedAt in since..now }
+            val days = java.time.temporal.ChronoUnit.DAYS.between(start, today).toInt() + 1
+            val base = compute(filtered, songs, now, days, zone.rules.getOffset(java.time.Instant.ofEpochMilli(now)).totalSeconds * 1000L)
+            val perDay = IntArray(days)
+            for (event in filtered) {
+                val date = java.time.Instant.ofEpochMilli(event.playedAt).atZone(zone).toLocalDate()
+                perDay[java.time.temporal.ChronoUnit.DAYS.between(start, date).toInt()]++
+            }
+            val active = history.filter { it.playedAt <= now }.map { java.time.Instant.ofEpochMilli(it.playedAt).atZone(zone).toLocalDate() }.toSet()
+            var streak = 0
+            while (today.minusDays(streak.toLong()) in active) streak++
+            return base.copy(playsPerDay = perDay.toList(), streakDays = streak)
+        }
+
         fun compute(history: List<PlayHistoryEntity>, songs: List<Song>, now: Long, days: Int, zoneOffsetMs: Long = 0): ListeningStats {
             val byId = songs.associateBy { it.id }
             val since = now - days * DAY_MS

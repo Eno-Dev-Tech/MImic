@@ -32,14 +32,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asAndroidBitmap
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.res.imageResource
-import com.example.mimic.R
-import kotlin.math.atan2
-import kotlin.math.sqrt
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import kotlin.math.PI
 import kotlin.math.sin
 import androidx.compose.animation.core.LinearEasing
@@ -126,54 +122,53 @@ private fun Modifier.auroraGlyph(alpha: Float): Modifier =
 internal fun plasmaProgressBrush(): Brush =
     Brush.horizontalGradient(listOf(PlasmaCyan, PlasmaViolet, PlasmaPink))
 
-private const val HaloMeshSteps = 32
-
 @Composable
 internal fun Modifier.plasmaArtworkHalo(animate: Boolean): Modifier {
-    val cyan = ImageBitmap.imageResource(R.drawable.plasma_halo_cyan).asAndroidBitmap()
-    val violet = ImageBitmap.imageResource(R.drawable.plasma_halo_violet).asAndroidBitmap()
-    val magenta = ImageBitmap.imageResource(R.drawable.plasma_halo_magenta).asAndroidBitmap()
     val motion = if (animate) {
-        rememberInfiniteTransition(label = "Plasma waves").animateFloat(
-            0f, (2 * PI).toFloat(), infiniteRepeatable(tween(14000, easing = LinearEasing)),
-            label = "Plasma wave phase",
+        rememberInfiniteTransition(label = "Plasma waveform").animateFloat(
+            0f, (2 * PI).toFloat(), infiniteRepeatable(tween(4800, easing = LinearEasing)),
+            label = "Waveform motion",
         )
     } else null
     return drawWithCache {
-        val layers = listOf(violet, magenta, cyan)
-        val side = HaloMeshSteps + 1
-        val count = side * side
-        val xs = FloatArray(count) { (it % side).toFloat() / HaloMeshSteps - .5f }
-        val ys = FloatArray(count) { (it / side).toFloat() / HaloMeshSteps - .5f }
-        val angles = FloatArray(count) { atan2(ys[it], xs[it]) }
-        val envelope = FloatArray(count) {
-            val radius = sqrt(xs[it] * xs[it] + ys[it] * ys[it])
-            ((radius - .19f) / .16f).coerceIn(0f, 1f)
-        }
-        val vertices = FloatArray(2 * count)
-        val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
-        val speeds = intArrayOf(2, -3, 1)
-        val diameter = size.minDimension * 1.60f
         val origin = Offset(size.width / 2f, size.height / 2f)
+        val unit = size.minDimension
+        val halfWidth = unit * .90f
+        val samples = 360
+        val positions = FloatArray(samples + 1) { it * 2f / samples - 1f }
+        val envelope = FloatArray(samples + 1) {
+            val x = positions[it]
+            kotlin.math.exp(-3.8f * x * x) * (1f - x * x)
+        }
+        val waveform = Path()
+        val gradient = Brush.horizontalGradient(
+            0f to Color(0xFF43F2DF),
+            .18f to Color(0xFF62BEFF),
+            .34f to Color(0xFFA276EF),
+            .49f to Color(0xFFED13D0),
+            .62f to Color(0xFFF34C9B),
+            .78f to Color(0xFFD7AD68),
+            .9f to Color(0xFFDBEF4B),
+            1f to Color(0xFFBDF24B),
+            startX = origin.x - halfWidth,
+            endX = origin.x + halfWidth,
+        )
         onDrawBehind {
             val phase = motion?.value ?: 0f
-            drawIntoCanvas { canvas ->
-                for (layer in layers.indices) {
-                    val time = phase * speeds[layer]
-                    for (i in 0 until count) {
-                        val angle = angles[i]
-                        val wave = sin((3 + layer) * angle + time)
-                        val ripple = sin((7 - layer) * angle - time)
-                        val radial = 1f + envelope[i] * (.11f * wave + .045f * ripple)
-                        val shear = envelope[i] * .022f * sin(4 * angle - time)
-                        vertices[2 * i] = origin.x + diameter * (xs[i] * radial - ys[i] * shear)
-                        vertices[2 * i + 1] = origin.y + diameter * (ys[i] * radial + xs[i] * shear)
-                    }
-                    canvas.nativeCanvas.drawBitmapMesh(
-                        layers[layer], HaloMeshSteps, HaloMeshSteps, vertices, 0, null, 0, paint,
-                    )
-                }
+            waveform.reset()
+            for (i in positions.indices) {
+                val position = positions[i]
+                val pulse = 1f + .065f * sin(2f * phase + position * 3f)
+                val amplitude = unit * .80f * envelope[i] * pulse
+                val oscillation = sin(position * 12f * PI.toFloat() - phase)
+                val x = origin.x + position * halfWidth
+                val y = origin.y + oscillation * amplitude
+                if (i == 0) waveform.moveTo(x, y) else waveform.lineTo(x, y)
             }
+            drawPath(waveform, gradient, alpha = .12f,
+                style = Stroke(11.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(waveform, gradient,
+                style = Stroke(6.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
     }
 }

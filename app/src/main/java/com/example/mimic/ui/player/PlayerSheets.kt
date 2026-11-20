@@ -381,6 +381,10 @@ fun PlaybackSettingsScreen(vm: PlayerViewModel, onBack: () -> Unit) {
             MimicSlider(value = cf, onValueChange = { cf = it }, onValueChangeFinished = { vm.setAudio(a.copy(crossfadeSec = cf.roundToInt())) }, valueRange = 0f..AudioPrefs.MAX_CROSSFADE_SEC.toFloat(), steps = AudioPrefs.MAX_CROSSFADE_SEC - 1)
         }
         SettingSwitch("Skip silence", "Shortens long silent gaps inside tracks (audiobooks, live recordings).", a.skipSilence) { vm.setAudio(a.copy(skipSilence = it)) }
+        if (com.example.mimic.BuildConfig.HAS_DOWNLOADER) {
+            SettingSwitch("SponsorBlock", "Skip community-marked sponsors, intros, outros and non-music sections in YouTube tracks. Sends video IDs to sponsor.ajay.app when streaming; downloads use cached segments. Disabled during Listen Together.", settings.sponsorBlockEnabled) { vm.setSponsorBlockEnabled(it) }
+            Text("Uses SponsorBlock data from https://sponsor.ajay.app under CC BY-NC-SA 4.0. Musify adaptation: Copyright © 2026 Valeri Gokadze, GPL-3.0-or-later.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
+        }
 
         Section("Volume leveling (ReplayGain)")
         Text(

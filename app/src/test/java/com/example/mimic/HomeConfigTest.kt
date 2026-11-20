@@ -30,7 +30,7 @@ class HomeConfigTest {
         val visible = config.visibleOrdered()
         // A new leading section (3.2 Quick Access) opens Home; the stored order follows it.
         assertTrue("quick access should be first", visible.first() == HomeSection.QUICK_ACCESS)
-        assertTrue("suggested should be next", visible[1] == HomeSection.SUGGESTED)
+        assertTrue("latest music should follow quick access", visible[1] == HomeSection.NEW_RELEASES)
         assertFalse("hidden section excluded", visible.contains(HomeSection.MOST_PLAYED))
         // All non-hidden sections present despite incomplete stored order.
         assertEquals(HomeSection.entries.size - 1, visible.size)

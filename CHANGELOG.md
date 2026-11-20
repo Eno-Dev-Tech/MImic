@@ -1,3 +1,29 @@
+## 4.8.0-beta.7 — private Home discovery (2026-11-20)
+
+- Home now includes New music, Recommended songs, and Suggested albums & playlists.
+- No sign-in needed. Choose Worldwide (default), UK, USA or Albania on Home; the
+  choice is saved and included in normal settings backups. It is a music-search
+  preference, not inferred from the device location, IP address or account.
+- Latest music appears first among the discovery rows. Public video search uses
+  this-week filtering and verifies upload dates within 14 days, newest first.
+  Upload dates may differ from original release dates; labels say so explicitly.
+- Recommendations use remembered online tracks where available, with public music
+  picks for a fresh library. Country selections use country-focused music queries.
+- Real album-playlist cards open in MImic's existing collection page and player.
+- Per-row refresh/retry, session caching, empty/failure states and source labels;
+  failed or empty refreshes retain previous picks. Reorder/hide rows in Home settings.
+- Package, signing identity, Navidrome, offline playback, user data and themes preserved.
+- Private build only. No push, publication or GitHub release.
+## 4.8.0-beta.6 — private Musify integration (2026-11-20)
+
+- Optional SponsorBlock skipping for YouTube streams and cached offline YouTube files,
+  using the existing Media3 player. Off by default; inactive during Listen Together.
+- Import Spotify playlist CSV files into a new playlist after reviewing exact matches
+  from the existing library. Missing and ambiguous recordings are listed, never guessed.
+- Monthly and annual calendar listening recaps with local time-zone/DST boundaries.
+- Restore the six original 3D presets, including Black & Orange, so saved selections
+  survive updates. Plasma Glow and the owner's uncommitted halo changes are preserved.
+- Same package and signing identity. Private local build only; no publication.
 # Changelog
 
 ## 4.8.0-beta.5

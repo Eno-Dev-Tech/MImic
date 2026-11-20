@@ -63,6 +63,13 @@ fun StatsScreen(vm: PlayerViewModel, onBack: () -> Unit) {
             }
         }
         val s = stats
+        item {
+            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0 to "This month", -1 to "This year").forEach { (d, label) ->
+                    FilterChip(selected = days == d, onClick = { vm.statsDays.value = d }, label = { Text(label) })
+                }
+            }
+        }
         if (s == null) {
             item { Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
             return@LazyColumn
@@ -78,7 +85,7 @@ fun StatsScreen(vm: PlayerViewModel, onBack: () -> Unit) {
             }
         }
         item {
-            SectionTitle(if (days == 365) "Plays per day · last year" else "Plays per day · last $days days")
+            SectionTitle(when (days) { 0 -> "This month's recap"; -1 -> "This year's recap"; 365 -> "Plays per day · last year"; else -> "Plays per day · last $days days" })
             PlaysChart(s.playsPerDay)
         }
         if (s.topArtists.isNotEmpty()) {

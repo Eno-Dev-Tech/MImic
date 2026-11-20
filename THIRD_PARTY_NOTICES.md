@@ -89,3 +89,38 @@ The glass waveform disc icon (4.5.0-beta.4; earlier the brushed-metal "E", the "
 
 If you give the APK to anyone else, the GPL requires that they can get the complete corresponding
 source code (this repository at the matching tag), under the GPL, with these notices kept.
+
+## Musify adaptations — private integration, 2026-11-20
+
+Source: https://github.com/gokadzev/Musify, commit
+5f6a5e7b497bc2bccd0985f731db1afe6dcdda9a (master inspected locally).
+Copyright (C) 2026 Valeri Gokadze. GNU GPL version 3 or, where stated in the
+upstream source header, any later version. Full upstream license is bundled as
+app/src/main/assets/Musify-GPL-3.txt; the project LICENSE remains GPL-3.0.
+
+Adapted files:
+- player/SponsorSegments.kt: _fetchSkipSegments from lib/services/common_services.dart;
+  ported to Kotlin with millisecond precision, validated and merged ranges.
+- data/PlaylistCsv.kt: CSV parser/header detection from
+  lib/screens/import_spotify_playlist_page.dart; bounded and validated, matches only
+  existing native-library recordings with explicit review of misses/ambiguities.
+- player/SponsorBlock.kt, ui/settings/PlaylistImportScreen.kt and calendar recaps
+  are native MImic implementations of compatible features. No Flutter runtime added.
+
+SponsorBlock: uses data from https://sponsor.ajay.app under CC BY-NC-SA 4.0,
+https://creativecommons.org/licenses/by-nc-sa/4.0/ . Data is obtained at runtime
+only after opt-in, stored in an evictable cache and not bundled with the APK.
+Attribution appears beside the setting. No data submissions or voting are performed.
+This private build is for the owner's noncommercial personal use.
+
+GPL-3 section 2 permits private modification and running without public source
+publication. If the combined app is conveyed to others, GPL sections 4–6 require
+notices, licensing and Corresponding Source through a compliant delivery method;
+this does not inherently require a public GitHub repository. Musify's README summary
+contains restrictions broader than the standard GPL text (including commercial
+redistribution); the actual LICENSE is the standard GPL. Obtain clarification before
+any future distribution. Private use does not waive unrelated service/content rights.
+Nothing from this integration was pushed, published or uploaded.
+
+## Home discovery additions — 2026-11-20
+DiscoveryMapper.rankRelated adapts Musify lib/services/common_services.dart _getRecommendationsFromSeedSongs (Copyright (C) 2026 Valeri Gokadze, GPL-3.0-or-later). It uses bounded native YouTube metadata calls and excludes seeds/duplicates. Country discovery, feed state, UI and caching are MImic code. Public YouTube extraction uses the existing bundled NewPipeExtractor (GPL-3.0); no new binary dependency or account/API key is required. Public album-query results remain labelled as playlists with their actual IDs/publishers; recent uploads are not claimed to be original release dates. Existing notices and the bundled Musify GPL text are retained.

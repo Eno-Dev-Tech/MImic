@@ -6,6 +6,9 @@ package com.example.mimic.data
  */
 enum class HomeSection(val label: String) {
     QUICK_ACCESS("Quick Access"), // MImic 3.2: compact grid of Liked Songs, Downloads, recent albums
+    NEW_RELEASES("New releases"),
+    RECOMMENDED_SONGS("Recommended songs"),
+    SUGGESTED_ALBUMS("Suggested albums"),
     RECENTLY_PLAYED("Continue Listening"),
     DOWNLOADS("Downloaded Music"),
     RECENT_SONGS("Recently Played"), // MImic 3.2: the play history (Continue Listening = albums)
@@ -57,12 +60,12 @@ data class HomeConfig(
         val order = sectionOrder.distinct().toMutableList()
         val defaults = HomeSection.entries
         val leading = defaults.first().takeIf { it !in order }
+        if (leading != null) order.add(0, leading)
         for ((i, section) in defaults.withIndex()) {
             if (section in order || section == leading) continue
             val anchor = defaults.subList(0, i).lastOrNull { it in order }
             if (anchor == null) order.add(section) else order.add(order.indexOf(anchor) + 1, section)
         }
-        if (leading != null) order.add(0, leading)
         return order
     }
 

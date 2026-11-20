@@ -145,13 +145,13 @@ fun SourceFilterRow(vm: PlayerViewModel, modifier: Modifier = Modifier) {
  */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
-fun RefreshableLibrary(vm: PlayerViewModel, contentPadding: PaddingValues, content: @Composable () -> Unit) {
+fun RefreshableLibrary(vm: PlayerViewModel, contentPadding: PaddingValues, onRefreshExtra: () -> Unit = {}, content: @Composable () -> Unit) {
     val catalog by vm.catalogState.collectAsStateWithLifecycle()
     val refreshing = catalog == com.example.mimic.player.CatalogState.Loading
     val state = androidx.compose.material3.pulltorefresh.rememberPullToRefreshState()
     androidx.compose.material3.pulltorefresh.PullToRefreshBox(
         isRefreshing = refreshing,
-        onRefresh = { vm.refreshAllSources() },
+        onRefresh = { vm.refreshAllSources(); onRefreshExtra() },
         state = state,
         modifier = Modifier.fillMaxSize(),
         indicator = {

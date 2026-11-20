@@ -61,3 +61,5 @@ No new runtime dependencies were added in 3.2. Design ideas were studied from:
   (reorderable/hideable tabs, grid/list toggle, sort direction) were taken from its README.
 - **android/nav3-recipes** (Apache-2.0) — navigation patterns reviewed; no code used.
 See docs/MIMIC_3_2.md for details.
+
+Private 4.8.0-beta.6: native Musify adaptations (GPL-3.0 / upstream GPL-3.0-or-later headers), no new binary dependency. SponsorBlock runtime data: CC BY-NC-SA 4.0; see THIRD_PARTY_NOTICES.md.

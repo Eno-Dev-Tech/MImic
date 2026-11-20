@@ -58,10 +58,12 @@ class DepthStyleTest {
     // ---- Presets ----
 
     @Test
-    fun retiredPresetSelectionsUseTheDefault() {
+    fun savedLegacy3dSelectionsKeepTheirTheme() {
         listOf("neu_ice", "neu_ice_night", "skeuo_graphite", "skeuo_ivory", "hybrid_soft", "hybrid_soft_night").forEach {
-            assertFalse(ThemeRegistry.presets.any { preset -> preset.id == it })
-            assertEquals(ThemeRegistry.DEFAULT_ID, ThemeRegistry.resolveSelection(it))
+            assertTrue(ThemeRegistry.presets.any { preset -> preset.id == it })
+            assertEquals(it, ThemeRegistry.resolveSelection(it))
+            assertEquals(it, ThemeRegistry.byId(it).id)
+            assertFalse(ThemeRegistry.byId(it).style.depth == DepthStyle.FLAT)
         }
         assertEquals("custom-theme", ThemeRegistry.resolveSelection("custom-theme"))
         assertEquals(ThemeRegistry.CONTROL_DECK_ID, ThemeRegistry.resolveSelection("matte_amber_3d"))

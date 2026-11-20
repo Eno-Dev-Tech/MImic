@@ -12,6 +12,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 data class AppSettings(
+    val discoveryCountry: com.example.mimic.data.online.DiscoveryCountry = com.example.mimic.data.online.DiscoveryCountry.WORLDWIDE,
+    val sponsorBlockEnabled: Boolean = false,
     val themeId: String = ThemeRegistry.DEFAULT_ID,
     /** 4.8: the theme in use before a 3D style was picked (null = none recorded). */
     val lastFlatThemeId: String? = null,
@@ -36,8 +38,17 @@ private inline fun <reified T : Enum<T>> decode(value: String?, fallback: T): T 
 
 /** Lightweight user preferences backed by DataStore. */
 class SettingsRepository(private val context: Context) {
+    suspend fun setDiscoveryCountry(country: com.example.mimic.data.online.DiscoveryCountry) {
+        context.dataStore.edit { it[Keys.DISCOVERY_COUNTRY] = country.name }
+    }
+
+    suspend fun setSponsorBlockEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SPONSOR_BLOCK] = enabled }
+    }
 
     private object Keys {
+        val DISCOVERY_COUNTRY = stringPreferencesKey("home_discovery_country")
+        val SPONSOR_BLOCK = booleanPreferencesKey("sponsorblock_enabled")
         val THEME_ID = stringPreferencesKey("theme_id")
         val SLEEP = intPreferencesKey("sleep_timer_minutes")
         val LAYOUT = stringPreferencesKey("player_layout")
@@ -120,6 +131,8 @@ class SettingsRepository(private val context: Context) {
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
+            discoveryCountry = decode(prefs[Keys.DISCOVERY_COUNTRY], com.example.mimic.data.online.DiscoveryCountry.WORLDWIDE),
+            sponsorBlockEnabled = prefs[Keys.SPONSOR_BLOCK] ?: false,
             themeId = ThemeRegistry.resolveSelection(prefs[Keys.THEME_ID]),
             lastFlatThemeId = prefs[Keys.LAST_FLAT_THEME],
             sleepTimerMinutes = prefs[Keys.SLEEP] ?: 0,

@@ -146,7 +146,7 @@ private fun n(count: Int, one: String, many: String = one + "s") = "$count ${if 
 
 
 @Composable
-fun BackupRestoreScreen(player: PlayerViewModel, onBack: () -> Unit) {
+fun BackupRestoreScreen(player: PlayerViewModel, onBack: () -> Unit, onImportPlaylist: () -> Unit = {}) {
     BackHandler(onBack = onBack)
     val vm: BackupViewModel = viewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -158,6 +158,11 @@ fun BackupRestoreScreen(player: PlayerViewModel, onBack: () -> Unit) {
 
     LazyColumn(Modifier.fillMaxSize()) {
         item { Header("Backup & Restore", onBack) }
+        item {
+            OutlinedButton(onClick = onImportPlaylist, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                Text("Import Spotify / playlist CSV…")
+            }
+        }
         item {
             Note("A backup is one file with your favorites, playlists, listening history, custom themes, settings and radio countries & stations. " +
                 "It never contains music files, downloads or passwords. Keep it anywhere the file picker can reach — the phone, an SD card or a cloud app.")

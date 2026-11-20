@@ -194,6 +194,15 @@ object ThemeRegistry {
         depth = DepthStyle.SKEUOMORPHIC, cornerRadius = 22, navCornerRadius = 26,
         controlShape = ControlShape.CAPSULE, pillNav = true, headerWeight = 600, titleWeight = 500,
     )
+    private val NEU = ThemeStyle(
+        depth = DepthStyle.NEUMORPHIC, cornerRadius = 26, navCornerRadius = 30,
+        controlShape = ControlShape.CAPSULE, pillNav = true, headerWeight = 600, titleWeight = 500,
+        fontFamily = FontChoice.SERIF,
+    )
+    private val HYBRID = ThemeStyle(
+        depth = DepthStyle.HYBRID, cornerRadius = 26, navCornerRadius = 30,
+        controlShape = ControlShape.CAPSULE, pillNav = true, headerWeight = 600, titleWeight = 500,
+    )
     /** The MImic flagship: dark liquid glass that re-tints itself from the playing album. */
     private val GLASS_MIMIC = ThemeStyle(
         glass = true, glassOpacity = 0.2f, blurRadius = 10, refraction = 0.85f, edgeHighlight = 0.8f,
@@ -243,6 +252,13 @@ object ThemeRegistry {
         dark("purple_galaxy", "Purple Galaxy", 0xFF8E44EF, 0xFFC06BFF, 0xFF0E0A1A, 0xFF171026, 0xFF221634, text2 = 0xFFBCA9E0),
         dark("retro_vinyl", "Retro Vinyl", 0xFFD9A441, 0xFF8C5A2B, 0xFF17120B, 0xFF241B10, 0xFF332717, text = 0xFFF4E8D0, text2 = 0xFFC0A878),
         // ---- 3D styles (4.8): a light and a dark variant of each ----
+        // Restored from 4.8 beta 2: saved selections must keep their original colors and style.
+        light("neu_ice", "Neumorphism · Soft Ice Blue", 0xFF3B5DB0, 0xFF6D8DDB, 0xFFE6EEF9, 0xFFE6EEF9, 0xFFDCE6F4, text = 0xFF101318, text2 = 0xFF4A5670, style = NEU),
+        dark("neu_ice_night", "Neumorphism · Ice Night", 0xFF9DB8FF, 0xFF6D8DDB, 0xFF1E2532, 0xFF1E2532, 0xFF262F3E, text = 0xFFE8EEF8, text2 = 0xFFA6B3C8, style = NEU),
+        dark("skeuo_graphite", "Skeuomorphism · Black & Orange", 0xFFFF7A1A, 0xFFFF4D0A, 0xFF242426, 0xFF1B1B1D, 0xFF2C2C2F, text = 0xFFEDEDEF, text2 = 0xFF9C9CA3, style = SKEUO),
+        light("skeuo_ivory", "Skeuomorphism · Studio Ivory", 0xFFA4481F, 0xFF8A6A3D, 0xFFE6E0D5, 0xFFF2EEE6, 0xFFDDD5C7, text = 0xFF2A241D, text2 = 0xFF5E5446, style = SKEUO),
+        light("hybrid_soft", "Hybrid Soft 3D", 0xFFA53D14, 0xFF3B5DB0, 0xFFE6EEF9, 0xFFE6EEF9, 0xFFDCE6F4, text = 0xFF101318, text2 = 0xFF4A5670, style = HYBRID),
+        dark("hybrid_soft_night", "Hybrid Soft 3D · Night", 0xFFFF8F4D, 0xFF9DB8FF, 0xFF1E2532, 0xFF1E2532, 0xFF262F3E, text = 0xFFE8EEF8, text2 = 0xFFA6B3C8, style = HYBRID),
         dark("high_contrast", "High Contrast", 0xFFFFEB3B, 0xFFFFFFFF, 0xFF000000, 0xFF000000, 0xFF141414, text = 0xFFFFFFFF, text2 = 0xFFFFFFFF),
     )
 
@@ -260,20 +276,16 @@ object ThemeRegistry {
         "sunset", "minimal_mono", "premium_gold", "material_you",
     )
 
-    val DEPTH_IDS: Set<String> = setOf(CONTROL_DECK_ID)
-
-    private val retiredPresetIds = setOf(
-        "neu_ice", "neu_ice_night", "skeuo_graphite", "skeuo_ivory", "hybrid_soft", "hybrid_soft_night",
-    )
+    val DEPTH_IDS: Set<String> = setOf(CONTROL_DECK_ID, "neu_ice", "neu_ice_night", "skeuo_graphite", "skeuo_ivory", "hybrid_soft", "hybrid_soft_night")
 
     fun resolveSelection(id: String?): String =
         when {
             id == RETIRED_MATTE_AMBER_ID -> CONTROL_DECK_ID
-            id == null || id in retiredPresetIds -> DEFAULT_ID
+            id == null -> DEFAULT_ID
             else -> id
         }
 
-    fun usesHardwareControls(id: String): Boolean = id in DEPTH_IDS
+    fun usesHardwareControls(id: String): Boolean = id == CONTROL_DECK_ID
 
     fun byId(id: String?): ThemeDefinition = byId[id] ?: byId.getValue(DEFAULT_ID)
 }

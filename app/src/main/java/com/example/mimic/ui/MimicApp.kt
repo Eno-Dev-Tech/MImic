@@ -448,7 +448,10 @@ fun MimicApp(viewModel: PlayerViewModel) {
                 InsetScreen(innerPadding) { com.example.mimic.ui.settings.AccountsScreen(viewModel, onBack = back) }
             }
             composable("settings/backup") {
-                InsetScreen(innerPadding) { com.example.mimic.ui.settings.BackupRestoreScreen(viewModel, onBack = back) }
+                InsetScreen(innerPadding) { com.example.mimic.ui.settings.BackupRestoreScreen(viewModel, onBack = back, onImportPlaylist = { navController.navigate("settings/import-playlist") }) }
+            }
+            composable("settings/import-playlist") {
+                InsetScreen(innerPadding) { com.example.mimic.ui.settings.PlaylistImportScreen(viewModel, onBack = back) }
             }
             composable("settings/advanced") {
                 InsetScreen(innerPadding) {

@@ -139,7 +139,9 @@ class HomeOrderTest {
 
     @Test fun default_order_is_the_dashboard_order() {
         assertEquals(HomeSection.entries, HomeConfig().completeOrder())
-        assertEquals(HomeSection.DOWNLOADS, HomeConfig().visibleOrdered()[2])
+        val visible = HomeConfig().visibleOrdered()
+        assertEquals(HomeSection.NEW_RELEASES, visible[1])
+        assertEquals(HomeSection.DOWNLOADS, visible[visible.indexOf(HomeSection.RECENTLY_PLAYED) + 1])
     }
 
     @Test fun saved_3_1_order_gains_quick_access_on_top_and_recent_songs_after_downloads() {

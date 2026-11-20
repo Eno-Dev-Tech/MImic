@@ -1212,3 +1212,14 @@ alone does not create an updater release. Version 4.8.0 is a standard release fo
 both Stable and Beta channels; the canonical update repository is Eno-Dev-Tech/MImic.
 The old repository API URL was verified to redirect anonymously with HTTP 200.
 Publishing uses scripts/release.sh with checksums, original signing key and named ABI assets.
+
+PHONE UPDATER VERIFICATION — 2026-11-20
+Published https://github.com/Eno-Dev-Tech/MImic/releases/tag/v4.8.0 as GitHub's
+latest standard release, with all five signed APKs, checksums and SBOM.
+Release script dry-run and publish checks passed, including tests, lint and gate.
+Verified anonymous old repository redirect and all public APK URLs.
+On emulator-5554, beta.7's Stable updater found 4.8.0, downloaded and verified its
+published x86_64 APK, then installed through Android's update confirmation.
+Installed 4.8.0/build400800099 retained original firstInstallTime, 48 local tracks,
+existing playlists, remembered queue and Black & Orange theme. No data clear.
+Physical phone has not been tested. Release signing identity/package unchanged.

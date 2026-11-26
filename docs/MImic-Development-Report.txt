@@ -1248,3 +1248,17 @@ merged manifests and all five APK signing/package/version checks passed.
 Signing certificate unchanged: C03C51075A49A049387185C775626074368AA9F4220EB5BA0E74CC4A4F88087D.
 Android Studio was not opened. Physical devices, live account/server access and
 native ffmpeg downloader operation on the 16 KB Pixel were not tested.
+FELT PUBLICATION VERIFICATION - 2026-11-26
+Published https://github.com/Eno-Dev-Tech/MImic/releases/tag/v4.8.1-beta.1
+as a non-draft pre-release, tagged at b3b2757, on release/4.8.1-beta.1.
+All five signed APKs, SHA256SUMS.txt and CycloneDX SBOM are public/downloadable.
+Downloaded the universal APK anonymously from the public release URL; its SHA-256
+9CCFF518A1DC058985DFEF8CF82394A4E46D0C00E83DE91D9D694275BF8309D0
+matches the local release and Desktop/MImic-Releases/MImic-v4.8.1-beta.1-signed.apk.
+Verified the downloaded APK's pinned signing certificate and installed that exact
+public artifact on Pixel_10a with adb install -r. Cold launch succeeded; package,
+versionCode 400800134, versionName 4.8.1-beta.1 and original firstInstallTime retained.
+Manually applied both Felt themes and verified stitched Auto navigation and its
+live preview. Felt Orange / Auto survived a cold launch. Screenshots and test/build
+logs remain in the earlier session's outputs directory. The updater's Android
+installer flow was not exercised; public release download and direct update were.

@@ -1,3 +1,11 @@
+## 4.8.1-beta.1
+
+- Added Felt Classic and Felt Orange themes with textured, stitched cards and tactile player controls.
+- Added Sliding Pill, Liquid Bulge, Floating Notch, Icon Fill, Expanding Label and Bubble Float navigation styles.
+- Choose a navigation style and try its live preview in Home customization. Auto uses Sliding Pill on Felt themes.
+- Preserved existing themes, navigation destinations, playback, library data and signing identity.
+- Published as a pre-release for the Beta update channel.
+
 ## 4.8.0
 
 - Home discovery works without signing in: new music, song recommendations, and

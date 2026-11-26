@@ -223,7 +223,16 @@ object ThemeRegistry {
         text: Long = 0xFF101418, text2: Long = 0xFF55657A, style: ThemeStyle = ThemeStyle(),
     ) = ThemeDefinition(id, name, true, ThemeColors(primary, secondary, background, surface, elevated, text, text2, false), style)
 
+    const val FELT_CLASSIC_ID = "felt_classic"
+    const val FELT_ORANGE_ID = "felt_orange"
+
     val presets: List<ThemeDefinition> = listOf(
+        light(FELT_CLASSIC_ID, "Felt Classic", 0xFFA93A2B, 0xFF35486B, 0xFFF8F0DE,
+            0xFFF2E7D0, 0xFFE5D6BC, text = 0xFF283B5C, text2 = 0xFF35486B,
+            style = ThemeStyle(cornerRadius = 17)),
+        dark(FELT_ORANGE_ID, "Felt Orange", 0xFFFF801F, 0xFFE0D3C6, 0xFF151416,
+            0xFF242225, 0xFF393431, text = 0xFFF1E8DC, text2 = 0xFFE0D3C6,
+            style = ThemeStyle(cornerRadius = 17)),
         dark(PLASMA_GLOW_ID, "Plasma Glow", 0xFFEAA7FF, 0xFF83CAFF, 0xFF0B0816, 0xFF191027, 0xFF2A1A3C,
             text = 0xFFFAF2FF, text2 = 0xFFCEC0DB,
             style = ThemeStyle(gradientBackground = true, gradientColor = 0xFF27123C, cornerRadius = 28,

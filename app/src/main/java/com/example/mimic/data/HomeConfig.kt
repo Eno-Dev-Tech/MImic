@@ -27,7 +27,20 @@ enum class HomeSection(val label: String) {
  * glass pill, every other theme the standard bar, so a user who never touched this setting sees
  * exactly the pre-2.9 bar until they pick a glass theme.
  */
-enum class NavStyle { STANDARD, FLOATING, COMPACT, GLASS, AUTO, AURA }
+enum class NavStyle(val label: String) {
+    STANDARD("Standard"),
+    FLOATING("Floating"),
+    COMPACT("Compact"),
+    GLASS("Liquid Glass"),
+    AUTO("Auto (theme)"),
+    AURA("Floating Aura"),
+    SLIDING_PILL("Sliding Pill"),
+    LIQUID_BULGE("Liquid Bulge"),
+    FLOATING_NOTCH("Floating Notch"),
+    ICON_FILL("Icon Fill"),
+    EXPANDING_LABEL("Expanding Label"),
+    BUBBLE_FLOAT("Bubble Float"),
+}
 
 /**
  * Resolves the user's nav style against the active theme. AUTO follows the theme's pill-nav wish;

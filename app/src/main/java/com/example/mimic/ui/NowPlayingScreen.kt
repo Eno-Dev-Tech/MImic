@@ -67,6 +67,7 @@ import com.example.mimic.ui.components.AlbumArt
 import com.example.mimic.ui.components.GlassIconButton
 import com.example.mimic.ui.components.DepthIconButton
 import com.example.mimic.ui.components.MimicSlider
+import com.example.mimic.ui.navigation.LocalFelt
 import com.example.mimic.ui.components.PlayerVolumeControl
 import com.example.mimic.ui.designsystem.LocalDepth
 import com.example.mimic.ui.designsystem.depthPanel
@@ -136,9 +137,10 @@ fun NowPlayingScreen(
     val glassTheme = env.enabled
     val depthTheme = LocalDepth.current.on
     val background = config.resolvedBackground(glassTheme, depthTheme)
-    val controls = if (LocalDepth.current.matteAmber) ControlStyle.TACTILE else config.resolvedControls(glassTheme, depthTheme)
+    val felt = LocalFelt.current
+    val controls = if (felt || LocalDepth.current.matteAmber) ControlStyle.TACTILE else config.resolvedControls(glassTheme, depthTheme)
     // 3D controls need a 3D theme to draw; an explicit "3D" choice on a flat theme uses Filled.
-    val tactile = controls == ControlStyle.TACTILE && depthTheme
+    val tactile = controls == ControlStyle.TACTILE && (depthTheme || felt)
     val roundTop = controls == ControlStyle.GLASS || tactile
     // The overlay must FULLY occlude whatever is behind it. Gradient / artwork backgrounds are
     // translucent, so they are always layered ON TOP of an opaque base; otherwise the screen

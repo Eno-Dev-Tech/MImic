@@ -90,6 +90,8 @@ import com.example.mimic.ui.designsystem.LocalGlass
 import com.example.mimic.ui.designsystem.depthControl
 import com.example.mimic.ui.designsystem.depthPanel
 import com.example.mimic.ui.designsystem.pressScale
+import com.example.mimic.ui.navigation.FeltSurface
+import com.example.mimic.ui.navigation.LocalFelt
 import com.kyant.shapes.Capsule
 import kotlin.math.atan2
 import kotlin.math.cos
@@ -130,6 +132,29 @@ fun DepthIconButton(
 ) {
     val d = LocalDepth.current
     val scheme = MaterialTheme.colorScheme
+    if (LocalFelt.current) {
+        val interaction = remember { MutableInteractionSource() }
+        val pressed by interaction.collectIsPressedAsState()
+        val emphasized = accent || selected
+        val ink = tint ?: if (emphasized) scheme.onPrimary else scheme.onSurface
+        FeltSurface(
+            modifier = modifier.minimumInteractiveComponentSize().size(size)
+                .pressScale(interaction)
+                .clickable(interaction, ripple(), enabled, role = Role.Button, onClick = onClick)
+                .semantics {
+                    if (stateDescription != null) {
+                        this.stateDescription = stateDescription
+                        this.selected = selected
+                    }
+                },
+            color = if (emphasized) scheme.primary else scheme.surface,
+            stitch = if (emphasized) scheme.onPrimary.copy(alpha = .55f) else scheme.outline,
+            elevation = if (pressed) 1.dp else 5.dp,
+        ) {
+            Icon(icon, contentDescription, Modifier.size(iconSize), tint = ink.copy(alpha = if (enabled) 1f else .38f))
+        }
+        return
+    }
     // Reference 02's big play knob sits in a recessed housing ring cut into the chassis.
     if (accent && !bare && !housed && d.equipment && size >= 64.dp) {
         Box(modifier.size(size + 16.dp).equipmentHousing(), contentAlignment = Alignment.Center) {
@@ -260,6 +285,26 @@ fun MimicSlider(
     colors: SliderColors? = null,
 ) {
     val d = LocalDepth.current
+    if (LocalFelt.current) {
+        val interaction = remember { MutableInteractionSource() }
+        val dragged by interaction.collectIsDraggedAsState()
+        Slider(
+            value = value, onValueChange = onValueChange, modifier = modifier, enabled = enabled,
+            valueRange = valueRange, steps = steps, onValueChangeFinished = onValueChangeFinished,
+            interactionSource = interaction,
+            colors = colors ?: SliderDefaults.colors(),
+            thumb = {
+                val scheme = MaterialTheme.colorScheme
+                FeltSurface(
+                    modifier = Modifier.size(21.dp),
+                    color = if (enabled) scheme.primary else scheme.surfaceVariant,
+                    stitch = if (enabled) scheme.onPrimary.copy(alpha = .65f) else scheme.outline,
+                    elevation = if (dragged) 1.dp else 3.dp,
+                ) {}
+            },
+        )
+        return
+    }
     if (com.example.mimic.ui.designsystem.LocalPlasmaGlow.current) {
         val rtl = androidx.compose.ui.platform.LocalLayoutDirection.current == androidx.compose.ui.unit.LayoutDirection.Rtl
         Slider(
@@ -460,6 +505,17 @@ fun MimicCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val d = LocalDepth.current
+    if (LocalFelt.current) {
+        val fill = containerColor ?: MaterialTheme.colorScheme.surface
+        val onFill = MaterialTheme.colorScheme.contentColorFor(fill)
+            .takeIf { it != Color.Unspecified } ?: MaterialTheme.colorScheme.onSurface
+        FeltSurface(modifier, fill) {
+            CompositionLocalProvider(LocalContentColor provides onFill) {
+                Column(content = content)
+            }
+        }
+        return
+    }
     if (!d.on) {
         Card(
             modifier = modifier,

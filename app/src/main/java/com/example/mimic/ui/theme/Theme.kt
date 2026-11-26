@@ -27,6 +27,8 @@ import com.example.mimic.ui.designsystem.ThemeRegistry
 import com.example.mimic.ui.designsystem.ThemeDefinition
 import com.example.mimic.ui.designsystem.ThemeStyle
 import com.example.mimic.ui.designsystem.toColorScheme
+import com.example.mimic.ui.navigation.LocalFelt
+import com.example.mimic.ui.navigation.feltNavigationPalette
 
 /**
  * Applies a [ThemeDefinition]: colors (optionally re-tinted from the playing album via
@@ -73,6 +75,7 @@ fun MImicTheme(
         LocalGlass provides env,
         LocalDepth provides depth,
         LocalPlasmaGlow provides (theme.id == ThemeRegistry.PLASMA_GLOW_ID),
+        LocalFelt provides (feltNavigationPalette(theme.id) != null),
     ) {
         MaterialTheme(
             colorScheme = scheme,

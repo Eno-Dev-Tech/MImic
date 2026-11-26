@@ -21,6 +21,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -30,11 +33,19 @@ import com.example.mimic.data.HomeSection
 import com.example.mimic.data.NavStyle
 import com.example.mimic.data.movedBy
 import com.example.mimic.player.PlayerViewModel
+import com.example.mimic.ui.designsystem.LocalGlass
+import com.example.mimic.ui.navigation.AnimatedMimicNavigation
+import com.example.mimic.ui.navigation.MotionPalette
+import com.example.mimic.ui.navigation.TopLevel
+import com.example.mimic.ui.navigation.forTheme
+import com.example.mimic.ui.navigation.mimicMotionTabs
+import com.example.mimic.ui.navigation.navigationMotion
 
 @Composable
 fun HomeCustomizeScreen(vm: PlayerViewModel, onBack: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val config = settings.homeConfig
+    var previewRoute by rememberSaveable { mutableStateOf(TopLevel.HOME.route) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(
@@ -52,15 +63,31 @@ fun HomeCustomizeScreen(vm: PlayerViewModel, onBack: () -> Unit) {
 
         SelectRow(
             "Navigation style",
-            listOf("Standard", "Floating", "Compact", "Liquid Glass", "Auto (theme)", "Floating Aura"),
+            NavStyle.entries.map { it.label },
             config.navStyle.ordinal,
         ) { vm.setHomeConfig(config.copy(navStyle = NavStyle.entries[it])) }
         Text(
-            "Auto uses the Floating Aura dock on the Floating Aura theme, the floating glass pill on Liquid Glass themes and the standard bar otherwise.",
+            "Auto follows the active theme, including the stitched Sliding Pill on Felt.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp),
         )
+
+        config.navStyle.navigationMotion(settings.themeId)?.let { motion ->
+            Text(
+                "Navigation preview",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(start = 16.dp, top = 12.dp),
+            )
+            AnimatedMimicNavigation(
+                tabs = mimicMotionTabs,
+                selectedKey = previewRoute,
+                onSelect = { previewRoute = it },
+                motion = motion,
+                palette = MotionPalette.forTheme(settings.themeId),
+                reduceMotion = LocalGlass.current.motionScale == 0f,
+            )
+        }
 
         Text(
             "Home sections",

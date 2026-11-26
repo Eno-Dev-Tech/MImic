@@ -81,6 +81,11 @@ import com.example.mimic.ui.library.FavoritesScreen
 import com.example.mimic.ui.library.LibraryScreen
 import com.example.mimic.ui.library.LocalBarPadding
 import com.example.mimic.ui.library.rememberRowEnv
+import com.example.mimic.ui.navigation.AnimatedMimicNavigation
+import com.example.mimic.ui.navigation.MotionPalette
+import com.example.mimic.ui.navigation.forTheme
+import com.example.mimic.ui.navigation.mimicMotionTabs
+import com.example.mimic.ui.navigation.navigationMotion
 import com.example.mimic.ui.navigation.TopLevel
 import com.example.mimic.ui.navigation.TopLevelNavigation
 import com.example.mimic.ui.navigation.ControlDeckNavigation
@@ -88,7 +93,7 @@ import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
 @Composable
-private fun BottomBar(navController: NavHostController, navStyle: NavStyle, controlDeck: Boolean, onReselect: (TopLevel) -> Unit) {
+private fun BottomBar(navController: NavHostController, navStyle: NavStyle, preferredNavStyle: NavStyle, controlDeck: Boolean, themeId: String, onReselect: (TopLevel) -> Unit) {
     // Recompose on every back-stack change; the owning tab is derived from the whole stack, so a
     // pushed screen (Album, Account, ...) keeps its tab highlighted.
     val entry by navController.currentBackStackEntryAsState()
@@ -96,6 +101,18 @@ private fun BottomBar(navController: NavHostController, navStyle: NavStyle, cont
     val routes = remember(entry) { navController.currentBackStack.value.map { it.destination.route } }
     val owner = TopLevelNavigation.owningTab(routes)
     val goTo: (TopLevel) -> Unit = { tab -> TopLevelNavigation.navigate(navController, tab)?.let(onReselect) }
+    preferredNavStyle.navigationMotion(themeId)?.let { motion ->
+        AnimatedMimicNavigation(
+            tabs = mimicMotionTabs,
+            selectedKey = owner.route,
+            onSelect = { route -> TopLevel.visible.firstOrNull { it.route == route }?.let(goTo) },
+            motion = motion,
+            modifier = Modifier.navigationBarsPadding(),
+            palette = MotionPalette.forTheme(themeId),
+            reduceMotion = LocalGlass.current.motionScale == 0f,
+        )
+        return
+    }
     val compact = navStyle == NavStyle.COMPACT
     if (com.example.mimic.ui.designsystem.LocalPlasmaGlow.current) {
         com.example.mimic.ui.navigation.PlasmaNavigation(owner, goTo, compact, Modifier.navigationBarsPadding())
@@ -406,7 +423,14 @@ fun MimicApp(viewModel: PlayerViewModel) {
                         compact = compactMini.value,
                     )
                 }
-                BottomBar(navController, navStyle, ThemeRegistry.usesHardwareControls(settings.themeId), onReselect = { tabReselect.tryEmit(it) })
+                BottomBar(
+                    navController = navController,
+                    navStyle = navStyle,
+                    preferredNavStyle = settings.homeConfig.navStyle,
+                    controlDeck = ThemeRegistry.usesHardwareControls(settings.themeId),
+                    themeId = settings.themeId,
+                    onReselect = { tabReselect.tryEmit(it) },
+                )
             }
         },
     ) { innerPadding ->

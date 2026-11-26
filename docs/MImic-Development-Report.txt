@@ -1223,3 +1223,28 @@ published x86_64 APK, then installed through Android's update confirmation.
 Installed 4.8.0/build400800099 retained original firstInstallTime, 48 local tracks,
 existing playlists, remembered queue and Black & Orange theme. No data clear.
 Physical phone has not been tested. Release signing identity/package unchanged.
+FELT UPDATE RECOVERY AND RELEASE VALIDATION - 2026-11-26
+Recovered from the owner-approved local mimic-felt.patch, SHA-256
+1E17532F9C0B21C92C39F9B96414D321992AA4990A603521EC74CCD336954BF8.
+Commit 24ad57d was unavailable; no claim of recovering that exact Git object.
+Verified the patch was absent in the Windows checkout and passed git apply --check
+in a clean worktree based on 6181a3a before applying it.
+Version: 4.8.1-beta.1; derived versionCode 400800134; GitHub pre-release.
+Includes Felt Classic, Felt Orange, Sliding Pill, Liquid Bulge, Floating Notch,
+Icon Fill, Expanding Label, Bubble Float, live preview and Felt tactile surfaces.
+PASS: Full unit suite 359 tests (356 passed, 3 skipped); Standard 237 (236 passed,
+1 skipped); no unit failures/errors. Full release lint and both signed builds passed.
+PASS: Pixel_10a Android 17, x86_64, 16 KB pages: 14 instrumented regression tests,
+including all 72 destination selections across six styles and both Felt palettes.
+Live Home discovery was not enabled; its assumption was skipped (the device XML
+represents AssumptionViolatedException as a failure, while Gradle reports success).
+The connected-test runner removed the app at cleanup. Restored default_boot with
+its original swiftshader renderer, recovering beta.5 and original firstInstallTime
+2026-10-17 19:29:42. Reinstalled the signed release with adb install -r; verified
+10 songs, 7 phone tracks, 3 Navidrome entries and 5 downloads match the baseline.
+Future emulator tests should use direct adb instrumentation to preserve the app.
+PASS: scripts/release.sh dry run; Gitleaks, OSV (345 dependencies, 0 blocking),
+merged manifests and all five APK signing/package/version checks passed.
+Signing certificate unchanged: C03C51075A49A049387185C775626074368AA9F4220EB5BA0E74CC4A4F88087D.
+Android Studio was not opened. Physical devices, live account/server access and
+native ffmpeg downloader operation on the 16 KB Pixel were not tested.

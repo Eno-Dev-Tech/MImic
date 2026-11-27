@@ -9,7 +9,7 @@ import warnings
 import zipfile
 import zlib
 
-from apk_pipeline import dex_members, validate_dex, validate_embedded, MANIFEST, sha, run
+from apk_pipeline import dex_members, validate_dex, validate_embedded, MANIFEST, sha, run, apk_min_sdk
 
 
 def fixture():
@@ -22,6 +22,13 @@ def fixture():
 
 
 class ProtectionAdmissionTest(unittest.TestCase):
+    def test_sdk_metadata_accepts_current_and_legacy_aapt_but_never_guesses(self):
+        self.assertEqual(24, apk_min_sdk("package: name='com.example.mimic'\r\nminSdkVersion:'24'\r\ntargetSdkVersion:'37'\r\n"))
+        self.assertEqual(24, apk_min_sdk("sdkVersion:'24'\ntargetSdkVersion:'37'\n"))
+        for text in ("targetSdkVersion:'37'", "minSdkVersion:'0'", "minSdkVersion:'unknown'"):
+            with self.assertRaises(RuntimeError):
+                apk_min_sdk(text)
+
     def test_utf8_tool_output_is_preserved_on_windows(self):
         value = run(['node', '-e', "process.stdout.write(Buffer.from('e2808d', 'hex'))"])
         self.assertEqual('\u200d', value)

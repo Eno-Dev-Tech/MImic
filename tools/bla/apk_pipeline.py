@@ -228,6 +228,14 @@ def sign_apk(source: Path, target: Path):
     validate_embedded(target)
 
 
+def apk_min_sdk(badging: str) -> int:
+    # aapt1 uses sdkVersion; current aapt2 uses minSdkVersion.
+    match = re.search(r"^(?:minSdkVersion|sdkVersion):'(\d+)'", badging, re.M)
+    if not match or int(match[1]) < 1:
+        raise RuntimeError('Missing APK minimum SDK metadata')
+    return int(match[1])
+
+
 def prepare_dist(dist: Path):
     expected = ROOT.resolve() / 'dist'
     if dist.resolve() != expected:
@@ -259,10 +267,8 @@ def stage_release(version: str, dist: Path):
         badging = all_badging.splitlines()[0]
         if f"name='{PACKAGE}'" not in badging or f"versionName='{version}'" not in badging:
             raise RuntimeError('Unexpected signed APK package/version')
-        min_sdk = re.search(r"^sdkVersion:'(\d+)'", all_badging, re.M)
-        if not min_sdk:
-            raise RuntimeError('Missing APK minimum SDK metadata')
-        evidence[name] = dict(sha256=sha(target.read_bytes()), bytes=target.stat().st_size, minSdk=int(min_sdk[1]),
+        min_sdk = apk_min_sdk(all_badging)
+        evidence[name] = dict(sha256=sha(target.read_bytes()), bytes=target.stat().st_size, minSdk=min_sdk,
                               certificateSha256=CERT, dexCount=len(receipt['dex']), blaVersion=VERSION,
                               intensity='stealth', r8=True, nativeAlignmentKiB=16,
                               limitations=receipt['limitations'])

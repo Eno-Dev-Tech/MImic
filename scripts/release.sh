@@ -10,6 +10,7 @@
 # Every APK must carry the pinned release certificate (RELEASE_CERT_SHA256) or the script stops.
 # Requires: Git Bash, JDK (Android Studio's jbr), Android SDK build-tools, gh (logged in).
 set -euo pipefail
+export PYTHONUTF8=1 PYTHONIOENCODING=utf-8
 cd "$(dirname "$0")/.."
 
 PUBLISH=false

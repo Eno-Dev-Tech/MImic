@@ -61,8 +61,11 @@ class Emulator:
             self.shell('uiautomator', 'dump', '/sdcard/mimic-bla-validation.xml')
             raw = self.shell('cat', '/sdcard/mimic-bla-validation.xml')
             try:
-                self.screen = ET.fromstring(raw)
-                return self.screen
+                root = ET.fromstring(raw)
+                if any(n.get('text') or n.get('content-desc') for n in root.iter('node')):
+                    self.screen = root
+                    return self.screen
+                time.sleep(.5)
             except ET.ParseError:
                 time.sleep(.5)
         raise RuntimeError('No stable MImic accessibility tree')
@@ -83,6 +86,7 @@ class Emulator:
         chosen = sorted(matches, key=lambda n: self.bounds(n)[1], reverse=bottom)[0]
         x1, y1, x2, y2 = self.bounds(chosen)
         self.shell('input', 'tap', str((x1 + x2) // 2), str((y1 + y2) // 2))
+        time.sleep(.35)
         self.tree()
 
     def current_theme(self):

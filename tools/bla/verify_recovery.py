@@ -55,6 +55,21 @@ def remove(phone, name):
     phone.tap('Remove')
 
 
+def download_signature(phone):
+    phone.launch()
+    phone.tap('Downloads')
+    find(phone, 'Offline music')
+    tree = phone.tree()
+    navigation = {'Home', 'Search', 'Library', 'Radio', 'Downloads', 'Settings'}
+    text = sorted({n.get('text') for n in tree.iter('node') if n.get('text') and
+                   n.get('text') not in navigation and 'used by MImic downloads' not in n.get('text')})
+    favorites = [n.get('content-desc') for n in tree.iter('node') if n.get('content-desc') in
+                 ('Add to favorites', 'Remove from favorites')]
+    if not any('songs available offline' in value for value in text):
+        raise RuntimeError('Missing personal download fixture')
+    return text, sorted(favorites)
+
+
 def all_removal_controls(phone):
     """Scan the entire gallery to prove absence/last-theme behavior, not only one viewport."""
     prior = None
@@ -104,6 +119,7 @@ def verify(phone, apk: Path):
         raise RuntimeError('Cannot preserve emulator before recovery checks')
     result = {}
     try:
+        personal = download_signature(phone)
         baseline_path = ROOT / 'build/bla/recovery-upgrade-baseline.json'
         if baseline_path.exists():
             baseline = json.loads(baseline_path.read_text(encoding='utf8'))
@@ -199,6 +215,9 @@ def verify(phone, apk: Path):
         phone.tap('Reset App Settings')
         phone.tap('Reset settings')
         phone.launch()
+        if download_signature(phone) != personal:
+            raise RuntimeError('Settings reset changed the visible downloads/favorites fixture')
+        result['visibleDownloadsAndFavoritesPreserved'] = True
         # The isolated Android test verifies retained personal keys; this checks final UI behavior.
         result['settingsResetConfirmed'] = True
         if phone.installed() != before:

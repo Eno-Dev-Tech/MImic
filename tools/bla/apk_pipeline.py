@@ -296,7 +296,7 @@ def verify_release(dist: Path, emulator: bool = False):
             recovery.get(field) is True for field in ('activeThemeFallback', 'removalPersistsAfterRestart',
                 'removalPersistsAfterReboot', 'sameVersionReinstall', 'lastThemeProtected',
                 'offlineThemeRestoration', 'restorePreservesSelection', 'settingsResetConfirmed',
-                'originalInstallRecordPreserved', 'removalPersistsAfterUpgrade')):
+                'originalInstallRecordPreserved', 'removalPersistsAfterUpgrade', 'visibleDownloadsAndFavoritesPreserved')):
             raise RuntimeError('Missing final APK theme recovery/repair regression evidence')
     print('BLA release verification passed' + (' including emulator upgrade evidence' if emulator else ''))
 

@@ -1449,7 +1449,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Built-in presets plus the user's custom themes, for the gallery and resolution. */
-    val allThemes: StateFlow<List<com.example.mimic.ui.designsystem.ThemeDefinition>> =
+    private val themeCatalog: StateFlow<List<com.example.mimic.ui.designsystem.ThemeDefinition>> =
         customThemes
             .map { custom -> com.example.mimic.ui.designsystem.ThemeRegistry.presets + custom }
             .stateIn(
@@ -1458,10 +1458,20 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 com.example.mimic.ui.designsystem.ThemeRegistry.presets,
             )
 
+    /** Removal is a local visibility preference; the original catalog is never deleted. */
+    val allThemes: StateFlow<List<com.example.mimic.ui.designsystem.ThemeDefinition>> =
+        combine(themeCatalog, settings.map { it.removedThemeIds }.distinctUntilChanged()) { themes, removed ->
+            val visible = com.example.mimic.data.ThemeVisibility.visibleIds(themes.map { it.id }, removed).toSet()
+            themes.filter { it.id in visible }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000),
+            com.example.mimic.ui.designsystem.ThemeRegistry.presets)
+
     /** The selected theme (preset or custom), resolved once here instead of in every screen. */
     val activeTheme: StateFlow<com.example.mimic.ui.designsystem.ThemeDefinition> =
         combine(settings.map { it.themeId }.distinctUntilChanged(), allThemes) { id, themes ->
-            themes.firstOrNull { it.id == id } ?: com.example.mimic.ui.designsystem.ThemeRegistry.byId(id)
+            themes.firstOrNull { it.id == id }
+                ?: themes.firstOrNull { it.id == com.example.mimic.ui.designsystem.ThemeRegistry.DEFAULT_ID }
+                ?: themes.first()
         }
             .distinctUntilChanged()
             .stateIn(
@@ -1490,6 +1500,38 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setGlassQuality(quality: com.example.mimic.data.GlassQuality) {
         viewModelScope.launch { settingsRepo.setGlassQuality(quality) }
+    }
+
+    data class RecoveryStatus(val working: Boolean = false, val message: String? = null, val failed: Boolean = false)
+    private val _recoveryStatus = MutableStateFlow(RecoveryStatus())
+    val recoveryStatus: StateFlow<RecoveryStatus> = _recoveryStatus.asStateFlow()
+
+    private fun recover(success: String, operation: suspend () -> Unit) {
+        if (_recoveryStatus.value.working) return
+        _recoveryStatus.value = RecoveryStatus(working = true)
+        viewModelScope.launch {
+            try {
+                operation()
+                _recoveryStatus.value = RecoveryStatus(message = success)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _recoveryStatus.value = RecoveryStatus(message = "Couldn't finish recovery. Your personal data has not been deleted. Try again.", failed = true)
+            }
+        }
+    }
+
+    fun removeTheme(id: String) = recover("Theme removed. You can restore it in Settings > Updates.") {
+        check(settingsRepo.removeTheme(id, themeCatalog.value.map { it.id })) { "Keep at least one theme" }
+    }
+
+    fun restoreRemovedThemes() = recover("Removed themes restored.") { settingsRepo.restoreRemovedThemes() }
+
+    fun resetAppSettings() = recover("Default settings restored. Your personal data has been kept.") {
+        pause() // Keep the queue; never stopPlayback(), clear media or delete music caches.
+        cancelSleepTimer()
+        settingsRepo.resetConfigurablePreferences()
+        container.updateManager.resetPreferences()
     }
 
     /**

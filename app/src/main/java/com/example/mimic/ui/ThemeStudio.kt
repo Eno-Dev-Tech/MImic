@@ -31,6 +31,9 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -126,6 +129,8 @@ fun ThemeStudioScreen(
 ) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val themes by vm.allThemes.collectAsStateWithLifecycle()
+    val recovery by vm.recoveryStatus.collectAsStateWithLifecycle()
+    val canRemove = themes.size > 1 && !recovery.working
     var confirmDelete by remember { mutableStateOf<ThemeDefinition?>(null) }
     var confirmRestore by remember { mutableStateOf(false) }
     var overflow by remember { mutableStateOf(false) }
@@ -153,7 +158,7 @@ fun ThemeStudioScreen(
             }
         })
         LazyColumn(Modifier.fillMaxSize()) {
-            themeSection("3D themes", hardwareThemes, settings.themeId, vm, onEdit, onExportFile, onShare) { confirmDelete = it }
+            themeSection("3D themes", hardwareThemes, settings.themeId, vm, canRemove, onEdit, onExportFile, onShare) { confirmDelete = it }
             item(key = "quality") { GlassQualityPicker(settings.glassQuality, vm::setGlassQuality) }
             item(key = "dynamic") {
                 val inUse = settings.playerLayout.layout == com.example.mimic.data.PlayerLayout.DYNAMIC
@@ -188,6 +193,8 @@ fun ThemeStudioScreen(
                         selected = settings.themeId == theme.id,
                         onApply = { vm.setThemeId(theme.id) },
                         onCustomize = { onEdit(vm.duplicateTheme(theme)) },
+                        onRemove = { confirmDelete = theme },
+                        canRemove = canRemove,
                     )
                 }
             }
@@ -199,16 +206,20 @@ fun ThemeStudioScreen(
                         selected = settings.themeId == theme.id,
                         onApply = { vm.setThemeId(theme.id) },
                         onCustomize = { onEdit(vm.duplicateTheme(theme)) },
+                        onRemove = { confirmDelete = theme },
+                        canRemove = canRemove,
                         subtitle = "Animated floating dock — each tab lights it in its own color. Tap the icons to try it.",
                         tapToApply = false,
                     )
                 }
             }
-            themeSection("Presets", canonical, settings.themeId, vm, onEdit, onExportFile, onShare) { confirmDelete = it }
+            themeSection("Presets", canonical, settings.themeId, vm, canRemove, onEdit, onExportFile, onShare) { confirmDelete = it }
             if (custom.isNotEmpty()) {
-                themeSection("Your themes", custom, settings.themeId, vm, onEdit, onExportFile, onShare) { confirmDelete = it }
+                themeSection("Your themes", custom, settings.themeId, vm, canRemove, onEdit, onExportFile, onShare) { confirmDelete = it }
             }
-            themeSection("More presets", legacy, settings.themeId, vm, onEdit, onExportFile, onShare) { confirmDelete = it }
+            themeSection("More presets", legacy, settings.themeId, vm, canRemove, onEdit, onExportFile, onShare) { confirmDelete = it }
+            if (themes.size == 1) item { Text("Keep at least one theme available.", Modifier.padding(16.dp)) }
+            recovery.message?.let { message -> item { Text(message, Modifier.padding(16.dp), color = if (recovery.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) } }
             item(key = "footer") { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -216,11 +227,11 @@ fun ThemeStudioScreen(
     confirmDelete?.let { theme ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
-            title = { Text("Delete \"${theme.name}\"?") },
-            text = { Text("This custom theme will be removed. Built-in presets are not affected. This can't be undone — export it first if you want a copy.") },
+            title = { Text("Remove theme?") },
+            text = { Text("You can restore this theme later from Settings > Updates.") },
             confirmButton = {
-                TextButton(onClick = { vm.deleteCustomTheme(theme.id); confirmDelete = null }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                TextButton(enabled = canRemove, onClick = { vm.removeTheme(theme.id); confirmDelete = null }) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } },
@@ -242,6 +253,7 @@ private fun LazyListScope.themeSection(
     list: List<ThemeDefinition>,
     selectedId: String,
     vm: PlayerViewModel,
+    canRemove: Boolean,
     onEdit: (ThemeDefinition) -> Unit,
     onExportFile: (ThemeDefinition) -> Unit,
     onShare: (ThemeDefinition) -> Unit,
@@ -267,6 +279,8 @@ private fun LazyListScope.themeSection(
             onDelete = { onDelete(theme) },
             onExportFile = { onExportFile(theme) },
             onShare = { onShare(theme) },
+            canRemove = canRemove,
+            modifier = Modifier.animateItem(),
         )
     }
 }
@@ -310,13 +324,18 @@ private fun FlagshipCard(
     selected: Boolean,
     onApply: () -> Unit,
     onCustomize: () -> Unit,
+    onRemove: () -> Unit,
+    canRemove: Boolean,
     subtitle: String = "Liquid glass that re-tints itself from the playing album",
     // Floating Aura's preview dock is interactive, so tapping the preview tries it, not applies it.
     tapToApply: Boolean = true,
 ) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        MImicTheme(theme = theme, quality = quality) {
-            ThemeLivePreview(Modifier.height(240.dp).then(if (tapToApply) Modifier.clickable(onClick = onApply) else Modifier))
+        Box {
+            MImicTheme(theme = theme, quality = quality) {
+                ThemeLivePreview(Modifier.height(240.dp).then(if (tapToApply) Modifier.clickable(onClick = onApply) else Modifier))
+            }
+            ThemeRemovalButton(theme.name, canRemove, onRemove, Modifier.align(Alignment.TopEnd))
         }
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -347,10 +366,13 @@ private fun ThemeRow(
     onDelete: () -> Unit,
     onExportFile: () -> Unit,
     onShare: () -> Unit,
+    canRemove: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     var menu by remember { mutableStateOf(false) }
+    Box(modifier.fillMaxWidth()) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onApply).padding(horizontal = 16.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().padding(end = 48.dp).clickable(onClick = onApply).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ThemeSwatch(theme, size = 52)
@@ -385,11 +407,25 @@ private fun ThemeRow(
                 }
                 DropdownMenuItem(text = { Text("Export to file") }, onClick = { menu = false; onExportFile() })
                 DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; onShare() })
-                if (!theme.builtIn) {
-                    DropdownMenuItem(text = { Text("Delete…") }, onClick = { menu = false; onDelete() })
-                }
+                DropdownMenuItem(enabled = canRemove, text = { Text("Remove…") }, onClick = { menu = false; onDelete() })
             }
         }
+    }
+    ThemeRemovalButton(theme.name, canRemove, onDelete, Modifier.align(Alignment.TopEnd).padding(end = 4.dp))
+    }
+}
+
+/** Small glyph, full 48dp target; also testable without modifying real preferences. */
+@Composable
+internal fun ThemeRemovalButton(name: String, enabled: Boolean, onRemove: () -> Unit, modifier: Modifier = Modifier) {
+    IconButton(onClick = onRemove, enabled = enabled,
+        colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ), modifier = modifier.size(48.dp).semantics {
+        if (!enabled) stateDescription = "Keep at least one theme available"
+    }) {
+        Icon(Icons.Default.Remove, contentDescription = "Remove $name", modifier = Modifier.size(18.dp))
     }
 }
 

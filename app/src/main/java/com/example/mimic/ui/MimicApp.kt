@@ -537,7 +537,7 @@ fun MimicApp(viewModel: PlayerViewModel) {
                 }
             }
             composable("updates") {
-                InsetScreen(innerPadding) { com.example.mimic.ui.update.AppUpdatesScreen(onBack = back) }
+                InsetScreen(innerPadding) { com.example.mimic.ui.update.AppUpdatesScreen(vm = viewModel, onBack = back) }
             }
 
             // ---- Pushed screens (Back pops them; the owning tab stays highlighted) ----

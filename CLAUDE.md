@@ -1,8 +1,34 @@
 # MImic — instructions for Claude Code sessions
 
+## Mandatory BLA production pipeline (2026-11-27)
+
+Read and obey AGENTS.md and docs/security/BLA_INTEGRATION.md. Every production
+APK must retain R8 optimization/obfuscation and pass the pinned BLA 3.6.1 stealth
+DEX transform, independent integrity/resource checks, zipalign, original-key
+signing and final signed-APK emulator/upgrade gate. Future themes/features/fixes
+must retain these checks. Never silently disable, skip or exclude BLA to fix a
+build; failure blocks release. Test BLA upgrades before changing the exact pin.
+Use npm ci --ignore-scripts; never @latest or automatic source weaving.
+
+The validated BLA mode is removable trailer text, not method encryption or proven
+JADX resistance. Preserve clean source, existing themes/data, package name,
+original signing certificate and OTA compatibility. Never publish unprotected
+comparison APKs, private R8 mappings, keys or credentials.
+
+Use tools/bla/android_regression.py for Android tests: it saves/restores its own
+emulator baseline and invokes instrumentation directly. Do not run Gradle
+connected tests against the owner's installation; their cleanup uninstalls it.
+The final release script requires exact-APK-hash emulator receipts and never
+uninstalls, clears data or downgrades. Android Studio is not needed.
+
 MImic is the owner's personal Android music player (package `com.example.mimic`). It plays phone
 music, a private Navidrome/OpenSubsonic server (reached over Tailscale), internet radio, and
 (full edition, 4.4+) YouTube Music / YouTube online music using code ported from BitChord.
+
+Preserve AGENTS.md's permanent recovery contract: local stable-ID theme hiding,
+last-theme protection, offline restoration, safe allowlisted settings reset and
+official protected same-version repair only on explicit request. Never delete
+personal data, custom theme records, credentials or music as part of recovery.
 
 ## Before changing anything
 1. Read `docs/MImic-Development-Report.txt` (complete system description and current status).

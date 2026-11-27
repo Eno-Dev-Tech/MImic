@@ -124,3 +124,11 @@ Nothing from this integration was pushed, published or uploaded.
 
 ## Home discovery additions — 2026-11-20
 DiscoveryMapper.rankRelated adapts Musify lib/services/common_services.dart _getRecommendationsFromSeedSongs (Copyright (C) 2026 Valeri Gokadze, GPL-3.0-or-later). It uses bounded native YouTube metadata calls and excludes seeds/duplicates. Country discovery, feed state, UI and caching are MImic code. Public YouTube extraction uses the existing bundled NewPipeExtractor (GPL-3.0); no new binary dependency or account/API key is required. Public album-query results remain labelled as playlists with their actual IDs/publishers; recent uploads are not claimed to be original release dates. Existing notices and the bundled Musify GPL text are retained.
+
+## BLA build-time tooling - 2026-11-27
+
+bla-agents 3.6.1 (BLA Contributors) is MIT licensed. Source: https://github.com/qybaihe/bla.
+The license is retained at tools/bla/LICENSE.bla. Its pinned Babel/parser dependencies
+are build-time tools only; Node, Babel and BLA are not Android runtime dependencies.
+The validated stealth mode adds inert DEX trailer text; it is not method encryption
+and has shown no additional JADX resistance over R8 in the local comparison.

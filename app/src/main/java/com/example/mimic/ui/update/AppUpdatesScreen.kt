@@ -18,6 +18,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Restore
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.RestartAlt
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
@@ -27,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,7 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -44,6 +51,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.mimic.BuildConfig
 import com.example.mimic.MimicApplication
+import com.example.mimic.player.PlayerViewModel
 import com.example.mimic.ui.library.DetailTopBar
 import com.example.mimic.ui.library.LocalBarPadding
 import com.example.mimic.update.UpdateChannel
@@ -57,13 +65,27 @@ import java.util.Date
  * download progress, install through Android's own confirmation, channel and auto-check.
  */
 @Composable
-fun AppUpdatesScreen(onBack: () -> Unit) {
+fun AppUpdatesScreen(vm: PlayerViewModel, onBack: () -> Unit) {
     BackHandler(onBack = onBack)
     val context = LocalContext.current
     val manager = remember { (context.applicationContext as MimicApplication).container.updateManager }
     val state by manager.state.collectAsStateWithLifecycle()
-    var auto by remember { mutableStateOf(manager.autoCheckEnabled) }
-    var channel by remember { mutableStateOf(manager.channel) }
+    val preferences by manager.preferences.collectAsStateWithLifecycle()
+    val auto = preferences.autoCheck
+    val channel = preferences.channel
+    val recovery by vm.recoveryStatus.collectAsStateWithLifecycle()
+    var confirmReset by remember { mutableStateOf(false) }
+    val scroll = rememberScrollState()
+    LaunchedEffect(state is State.Checking) { if (state is State.Checking) scroll.animateScrollTo(0) }
+    val busy = recovery.working || state is State.Checking || state is State.Downloading || state is State.Verifying || state is State.ReadyToInstall
+
+    if (confirmReset) AlertDialog(
+        onDismissRequest = { confirmReset = false },
+        title = { Text("Reset app settings?") },
+        text = { Text("Restore default appearance, theme visibility, playback preferences, sleep timer, library display, scanning and update preferences. Playback will pause.\n\nAccounts, credentials, server connections, custom themes, playlists, favorites, downloads, listening and search history, and music files will be kept. No personal files or caches will be deleted.") },
+        confirmButton = { TextButton(onClick = { confirmReset = false; vm.resetAppSettings() }) { Text("Reset settings") } },
+        dismissButton = { TextButton(onClick = { confirmReset = false }) { Text("Cancel") } },
+    )
 
     // Back from "Install unknown apps": pick up the granted permission.
     val owner = LocalLifecycleOwner.current
@@ -73,7 +95,7 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
         onDispose { owner.lifecycle.removeObserver(obs) }
     }
 
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = LocalBarPadding.current)) {
+    Column(Modifier.fillMaxSize().verticalScroll(scroll).padding(bottom = LocalBarPadding.current)) {
         DetailTopBar("App Updates", onBack)
         Card {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -113,17 +135,28 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
                     Text("Automatically check for updates")
                     Text("At most once a day on any network. Only notifies — never downloads or installs by itself.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                MimicSwitch(checked = auto, onCheckedChange = { auto = it; manager.autoCheckEnabled = it })
+                MimicSwitch(checked = auto, onCheckedChange = { manager.autoCheckEnabled = it })
             }
             Text("Update channel")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (c in UpdateChannel.entries) {
-                    FilterChip(selected = channel == c, onClick = { channel = c; manager.channel = c }, label = { Text(c.label) })
+                    FilterChip(selected = channel == c, onClick = { manager.channel = c }, label = { Text(c.label) }, enabled = !busy)
                 }
             }
             if (channel == UpdateChannel.BETA) {
                 Text("Beta releases may contain unfinished features. You also keep getting stable releases.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary)
             }
+        }
+        Card {
+            Text("Recovery & Repair", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("Restore themes or recover your app without deleting your music or account data.", style = MaterialTheme.typography.bodySmall)
+            OutlinedButton(onClick = vm::restoreRemovedThemes, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Icon(Icons.Default.Restore, null, Modifier.size(20.dp)); Spacer(Modifier.size(8.dp)); Text("Restore Removed Themes") }
+            Text("Works offline. Restores hidden themes and keeps your current selection.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedButton(onClick = manager::repairNow, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Icon(Icons.Default.Security, null, Modifier.size(20.dp)); Spacer(Modifier.size(8.dp)); Text("Repair / Reinstall Latest Version") }
+            Text("Checks the official GitHub releases for a compatible protected version. Explicit repair can reinstall the same version; it never downgrades or uninstalls. Android asks you to confirm.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            OutlinedButton(onClick = { confirmReset = true }, enabled = !busy, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) { Icon(Icons.Default.RestartAlt, null, Modifier.size(20.dp)); Spacer(Modifier.size(8.dp)); Text("Reset App Settings") }
+            if (recovery.working) CircularProgressIndicator(Modifier.size(24.dp))
+            recovery.message?.let { Text(it, color = if (recovery.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary) }
         }
         TextButton(
             onClick = {
@@ -137,7 +170,7 @@ fun AppUpdatesScreen(onBack: () -> Unit) {
             modifier = Modifier.padding(horizontal = 8.dp),
         ) { Text("View all releases on GitHub") }
         Text(
-            "Updates come only from ${UpdateConfig.releasesPage}. Every APK is checked (SHA-256, package, newer version, CPU, " +
+            "Updates come only from ${UpdateConfig.releasesPage}. Every APK is checked (SHA-256, protection report, package, newer version or explicit same-version repair, CPU, " +
                 "and MImic's own signing certificate) before Android's installer asks you to confirm. Your music, " +
                 "downloads, playlists and settings stay — an update never needs an uninstall.",
             style = MaterialTheme.typography.bodySmall,
@@ -162,11 +195,11 @@ private fun StateBody(state: State, manager: com.example.mimic.update.UpdateMana
             OutlinedButton(onClick = manager::checkNow) { Text("Check again") }
         }
         is State.Available -> {
-            Text("Update available: ${state.release.name}" + if (state.release.isPreRelease) " (beta)" else "", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
+            Text((if (state.release.repair) "Repair available: " else "Update available: ") + state.release.name + if (state.release.isPreRelease) " (beta)" else "", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.primary)
             Notes(state.release.notes)
             Text(state.release.apk.name + (state.release.apk.sizeBytes?.let { " · ${it / 1_048_576} MB" } ?: ""), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = manager::download) { Text("Download Update") }
+                Button(onClick = manager::download) { Text(if (state.release.repair) "Download for repair" else "Download Update") }
                 TextButton(onClick = manager::dismiss) { Text("Not now") }
             }
         }
@@ -188,13 +221,13 @@ private fun StateBody(state: State, manager: com.example.mimic.update.UpdateMana
                 Text("Android needs your permission for MImic to install updates (one time).", style = MaterialTheme.typography.bodySmall)
                 Button(onClick = manager::openInstallPermissionSettings) { Text("Allow installing updates") }
             } else {
-                Button(onClick = manager::installReady) { Text("Install Update") }
+                Button(onClick = manager::installReady) { Text(if (state.release.repair) "Reinstall / Repair" else "Install Update") }
             }
         }
         is State.Failed -> {
             Text(state.message, color = MaterialTheme.colorScheme.error)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { if (state.release != null) manager.download() else manager.checkNow() }) { Text("Try again") }
+                Button(onClick = manager::retry) { Text("Try again") }
                 TextButton(onClick = manager::dismiss) { Text("Dismiss") }
             }
         }

@@ -63,3 +63,14 @@ No new runtime dependencies were added in 3.2. Design ideas were studied from:
 See docs/MIMIC_3_2.md for details.
 
 Private 4.8.0-beta.6: native Musify adaptations (GPL-3.0 / upstream GPL-3.0-or-later headers), no new binary dependency. SponsorBlock runtime data: CC BY-NC-SA 4.0; see THIRD_PARTY_NOTICES.md.
+
+## BLA release tooling (build-time only)
+
+- bla-agents 3.6.1, MIT, exact npm graph/integrities in tools/bla/package-lock.json.
+- Node 24.19.0 and Python 3; npm lifecycle scripts disabled. npm audit gates HIGH/CRITICAL issues.
+- SDK build-tools 36.0.0: zipalign, apksigner, dexdump, aapt2; existing platform-tools ADB.
+- JADX 1.5.7 is a local measurement tool, not shipped. Official ZIP SHA-256:
+  1755e4242ade71a077438723689f404079592ec7764a3a0572f98fef94ebcbf3.
+- Firebase protolite-well-known-types 18.0.0 already belonged to Firestore's graph.
+  Full now retains com.google.type / com.google.rpc while stripping the duplicate
+  com.google.protobuf classes supplied by protobuf-javalite 4.x. Standard is unchanged.

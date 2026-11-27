@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.Interceptor
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
@@ -67,6 +68,23 @@ class UpdateManager(
 
     private val prefs = context.getSharedPreferences("app_updates", Context.MODE_PRIVATE)
     private var job: Job? = null
+    @Volatile private var downloadCall: Call? = null
+    private var repairRequested = false
+    data class Preferences(val autoCheck: Boolean, val channel: UpdateChannel)
+    private val _preferences = MutableStateFlow(Preferences(autoCheckEnabled, channel))
+    val preferences: StateFlow<Preferences> = _preferences.asStateFlow()
+
+    fun resetPreferences() {
+        val previous = job
+        job = null
+        previous?.cancel()
+        downloadCall?.cancel()
+        prefs.edit().remove(KEY_AUTO).remove(KEY_CHANNEL).remove(KEY_LAST_CHECK).remove(KEY_NOTIFIED).apply()
+        _preferences.value = Preferences(autoCheckEnabled, channel)
+        repairRequested = false
+        UpdateCheckWorker.schedule(context, autoCheckEnabled)
+        _state.value = State.Idle
+    }
 
     val currentVersion: String get() = BuildConfig.VERSION_NAME
 
@@ -75,6 +93,7 @@ class UpdateManager(
         set(value) {
             prefs.edit().putBoolean(KEY_AUTO, value).apply()
             UpdateCheckWorker.schedule(context, value)
+            _preferences.value = Preferences(value, channel)
         }
 
     var channel: UpdateChannel
@@ -83,6 +102,7 @@ class UpdateManager(
         get() = runCatching { UpdateChannel.valueOf(prefs.getString(KEY_CHANNEL, null) ?: defaultChannel.name) }.getOrDefault(defaultChannel)
         set(value) {
             prefs.edit().putString(KEY_CHANNEL, value.name).apply()
+            _preferences.value = Preferences(autoCheckEnabled, value)
             if (state.value is State.Available || state.value is State.UpToDate) _state.value = State.Idle
         }
 
@@ -106,17 +126,31 @@ class UpdateManager(
 
     /** Settings → "Check for Updates". Always allowed. */
     fun checkNow() {
+        check(repair = false)
+    }
+
+    fun repairNow() {
+        check(repair = true)
+    }
+
+    fun retry() {
+        if ((state.value as? State.Failed)?.release != null) download() else check(repairRequested)
+    }
+
+    private fun check(repair: Boolean) {
         if (!UpdateConfig.isConfigured) {
             _state.value = State.NotConfigured
             return
         }
         if (job?.isActive == true) return
+        repairRequested = repair
         job = scope.launch {
             _state.value = State.Checking
             _state.value = try {
-                val release = fetchLatest()
+                val release = if (repair) fetchRepair() else fetchLatest()
                 markChecked()
-                if (release != null && isNewer(release)) State.Available(release, currentVersion)
+                if (release != null && (repair || isNewer(release))) State.Available(release, currentVersion)
+                else if (repair) State.Failed("No compatible protected release is available for repair on this channel. No files or settings were changed.", null)
                 else State.UpToDate(currentVersion, System.currentTimeMillis())
             } catch (e: CancellationException) {
                 throw e
@@ -144,7 +178,17 @@ class UpdateManager(
         return release.version > current && AppVersion.versionCodeFor(release.version.toString()) > BuildConfig.VERSION_CODE
     }
 
-    private suspend fun fetchLatest(): ReleaseInfo? = withContext(Dispatchers.IO) {
+    private suspend fun fetchLatest(): ReleaseInfo? = ReleaseParser.pickLatest(fetchReleases(), channel, UpdateConfig.edition, Build.SUPPORTED_ABIS.toList())
+
+    private suspend fun fetchRepair(): ReleaseInfo? = withContext(Dispatchers.IO) {
+        ReleaseParser.repairCandidates(fetchReleases(), channel, UpdateConfig.edition,
+            Build.SUPPORTED_ABIS.toList(), currentVersion, BuildConfig.VERSION_CODE.toLong()).firstOrNull { release ->
+            ReleaseProtection.compatibleReport(readAsset(release.protection!!, ReleaseProtection.MAX_REPORT_BYTES),
+                release.version.toString(), release.apk.name, UpdateConfig.trustedCertSha256, Build.VERSION.SDK_INT)
+        }
+    }
+
+    private suspend fun fetchReleases(): String = withContext(Dispatchers.IO) {
         val req = Request.Builder().url(UpdateConfig.releasesApi)
             .header("Accept", "application/vnd.github+json")
             .header("X-GitHub-Api-Version", "2022-11-28")
@@ -152,7 +196,11 @@ class UpdateManager(
             .build()
         http.newCall(req).execute().use { resp ->
             when (resp.code) {
-                200 -> ReleaseParser.pickLatest(resp.body?.string().orEmpty(), channel, UpdateConfig.edition, Build.SUPPORTED_ABIS.toList())
+                200 -> resp.body?.byteStream()?.use { input ->
+                    val bytes = input.readBounded(4 * 1024 * 1024 + 1)
+                    if (bytes.size > 4 * 1024 * 1024) throw UpdateProblem("GitHub's release list is too large. Try again later.")
+                    bytes.toString(Charsets.UTF_8)
+                }.orEmpty()
                 404 -> throw UpdateProblem("No public release repository at ${UpdateConfig.releasesPage}.")
                 403, 429 -> throw UpdateProblem("GitHub is limiting requests right now. Try again in a little while.")
                 in 500..599 -> throw UpdateProblem("GitHub is unavailable right now (HTTP ${resp.code}). Try again later.")
@@ -177,26 +225,26 @@ class UpdateManager(
             else -> return
         }
         job?.cancel()
-        failed?.apk?.takeIf { it.exists() }?.let { apk ->
-            job = scope.launch { startInstall(apk, release) }
-            return
-        }
         job = scope.launch {
-            val target = File(updatesDir(), release.apk.name)
+            val cached = failed?.apk?.takeIf { it.exists() }
+            val target = cached ?: File(updatesDir(), "${System.nanoTime()}-${release.apk.name}")
             try {
-                downloadApk(release, target)
+                if (cached == null) downloadApk(release, target)
                 _state.value = State.Verifying(release)
                 verify(release, target)
                 startInstall(target, release)
             } catch (e: CancellationException) {
                 File(target.path + ".part").delete()
-                _state.value = State.Available(release, currentVersion)
+                if (job === coroutineContext[Job]) _state.value = State.Available(release, currentVersion)
                 throw e
             } catch (e: VerificationFailed) {
                 target.delete()
                 Log.w(TAG, "Update verification FAILED at '${e.check}': ${e.technical}")
                 _state.value = State.Failed("${e.check}: ${e.message}", release)
             } catch (e: Exception) {
+                File(target.path + ".part").delete()
+                if (job === coroutineContext[Job] && !coroutineContext[Job]!!.isActive) _state.value = State.Available(release, currentVersion)
+                coroutineContext.ensureActive()
                 target.delete()
                 Log.w(TAG, "Update download failed: ${e.javaClass.simpleName}")
                 _state.value = State.Failed(describe(e), release)
@@ -206,12 +254,10 @@ class UpdateManager(
 
     fun cancelDownload() {
         job?.cancel()
+        downloadCall?.cancel()
     }
 
     private suspend fun downloadApk(release: ReleaseInfo, target: File) = withContext(Dispatchers.IO) {
-        val part = File(target.path + ".part")
-        part.delete()
-        target.delete()
         val expectedSize = release.apk.sizeBytes
         if (expectedSize != null && updatesDir().usableSpace < expectedSize * 2) {
             throw UpdateProblem("Not enough free storage to download the update (${expectedSize / 1_048_576} MB needed). Free some space and try again.")
@@ -220,7 +266,9 @@ class UpdateManager(
             .header("Accept", "application/octet-stream")
             .header("User-Agent", "MImic/$currentVersion (Android)")
             .build()
-        http.newCall(req).execute().use { resp ->
+        val call = http.newCall(req)
+        downloadCall = call
+        try { call.execute().use { resp ->
             when {
                 resp.isSuccessful -> Unit
                 resp.code == 404 -> throw UpdateProblem("${release.apk.name} is no longer on GitHub. Check for updates again.")
@@ -233,33 +281,20 @@ class UpdateManager(
             if (total != null && total > limit) {
                 throw UpdateProblem("${release.apk.name} is larger than expected (${total / 1_048_576} MB). It was not downloaded.")
             }
-            var downloaded = 0L
             var lastEmit = 0L
             _state.value = State.Downloading(release, 0, total)
             body.byteStream().use { input ->
-                part.outputStream().use { output ->
-                    val buffer = ByteArray(64 * 1024)
-                    while (true) {
-                        coroutineContext.ensureActive()
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        downloaded += read
-                        if (downloaded > limit) throw UpdateProblem("${release.apk.name} is larger than expected. It was not downloaded.")
-                        output.write(buffer, 0, read)
+                DownloadTransfer.receive(input, target, limit, total) { downloaded ->
                         val now = System.currentTimeMillis()
                         if (now - lastEmit >= 200) {
                             lastEmit = now
                             _state.value = State.Downloading(release, downloaded, total)
                         }
-                    }
                 }
             }
-            if (total != null && downloaded != total) {
-                throw UpdateProblem("Download incomplete: received $downloaded of $total bytes. Try again.")
-            }
-            _state.value = State.Downloading(release, downloaded, total ?: downloaded)
-        }
-        if (!part.renameTo(target)) throw IOException("Couldn't store the update")
+            _state.value = State.Downloading(release, target.length(), total ?: target.length())
+        } } finally { if (downloadCall === call) downloadCall = null }
+        coroutineContext.ensureActive()
     }
 
     /**
@@ -274,11 +309,7 @@ class UpdateManager(
         }
         // 2. Integrity: SHA-256 listed in the release's SHA256SUMS.txt.
         val actualSha = sha256(apk)
-        val sums = http.newCall(Request.Builder().url(release.checksums.downloadUrl).header("User-Agent", "MImic/$currentVersion (Android)").build())
-            .execute().use { r ->
-                if (!r.isSuccessful) throw UpdateProblem("Couldn't read ${UpdateConfig.CHECKSUM_ASSET} (HTTP ${r.code}). Try again.")
-                r.body?.string()?.take(64_000).orEmpty()
-            }
+        val sums = readAsset(release.checksums, 64_000)
         val expected = ReleaseParser.checksumFor(sums, release.apk.name)
             ?: throw VerificationFailed("Checksum missing", "${UpdateConfig.CHECKSUM_ASSET} doesn't list ${release.apk.name}.", "no line for ${release.apk.name}")
         if (!expected.equals(actualSha, ignoreCase = true)) {
@@ -300,6 +331,9 @@ class UpdateManager(
             installedCerts = signatures(installed),
             trustedCert = UpdateConfig.trustedCertSha256,
             releasesPage = UpdateConfig.releasesPage,
+            allowSameVersion = release.repair,
+            archiveVersionName = archive.versionName,
+            expectedVersionName = release.version.toString(),
         )?.let { throw VerificationFailed(it.check, it.message, it.technical) }
         // 5. Runs on this Android version and CPU.
         val minSdk = archive.applicationInfo?.minSdkVersion ?: 1
@@ -312,6 +346,30 @@ class UpdateManager(
         if (apkAbis.isNotEmpty() && apkAbis.none { it in Build.SUPPORTED_ABIS }) {
             throw VerificationFailed("Unsupported CPU", "the APK is built for ${apkAbis.joinToString()}.", "apk $apkAbis device ${Build.SUPPORTED_ABIS.toList()}")
         }
+        val reportAsset = release.protection ?: throw VerificationFailed("Protection report missing", "This release has no verified protection report. It was not installed.", "missing report asset")
+        val report = readAsset(reportAsset, ReleaseProtection.MAX_REPORT_BYTES)
+        val protectionMatches = ZipFile(apk).use { zip ->
+            val manifest = zip.getEntry(ReleaseProtection.MANIFEST) ?: return@use false
+            val embedded = zip.getInputStream(manifest).use { it.readBounded(ReleaseProtection.MAX_REPORT_BYTES + 1) }
+            if (embedded.size > ReleaseProtection.MAX_REPORT_BYTES) return@use false
+            val entries = zip.entries().asSequence().toList()
+            if (entries.map { it.name }.distinct().size != entries.size) return@use false
+            val dex = entries.filter { it.name.matches(Regex("classes(?:[2-9]|[1-9][0-9]+)?\\.dex")) }
+                .associate { entry -> entry.name to zip.getInputStream(entry).use { input ->
+                    val digest = MessageDigest.getInstance("SHA-256")
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        coroutineContext.ensureActive()
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        digest.update(buffer, 0, n)
+                    }
+                    digest.digest().joinToString("") { "%02x".format(it) }
+                } }
+            ReleaseProtection.matchesApk(report, embedded.toString(Charsets.UTF_8), release.version.toString(),
+                release.apk.name, actualSha, UpdateConfig.trustedCertSha256, Build.VERSION.SDK_INT, dex)
+        }
+        if (!protectionMatches) throw VerificationFailed("Protection verification failed", "The APK does not match its protection report. It was not installed.", "manifest/report/DEX mismatch")
         Log.i(TAG, "Update ${release.tag} verified (sha256 + package + versionCode + ABI + pinned certificate)")
     }
 
@@ -352,7 +410,17 @@ class UpdateManager(
             _state.value = ready.copy(needsPermission = true)
             return
         }
-        scope.launch { install(ready.apk, ready.release) }
+        if (job?.isActive == true) return
+        job = scope.launch {
+            try {
+                _state.value = State.Verifying(ready.release)
+                verify(ready.release, ready.apk)
+                startInstall(ready.apk, ready.release)
+            } catch (e: CancellationException) { throw e
+            } catch (e: Exception) {
+                _state.value = State.Failed(if (e is VerificationFailed) "${e.check}: ${e.message}" else describe(e), ready.release)
+            }
+        }
     }
 
     /** PackageInstaller session; Android shows its own confirmation, then replaces the app in place. */
@@ -405,6 +473,25 @@ class UpdateManager(
     // ---- helpers ------------------------------------------------------------------------------
 
     private fun updatesDir() = File(context.cacheDir, "updates").apply { mkdirs() }
+
+    private fun java.io.InputStream.readBounded(limit: Int): ByteArray {
+        val output = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        while (output.size() < limit) {
+            val n = read(buffer, 0, minOf(buffer.size, limit - output.size()))
+            if (n < 0) break
+            output.write(buffer, 0, n)
+        }
+        return output.toByteArray()
+    }
+
+    private fun readAsset(asset: ReleaseAsset, maxBytes: Int): String =
+        http.newCall(Request.Builder().url(asset.downloadUrl).header("User-Agent", "MImic/$currentVersion (Android)").build()).execute().use { response ->
+            if (!response.isSuccessful) throw UpdateProblem("Couldn't read ${asset.name} (HTTP ${response.code}). Try again.")
+            val bytes = response.body?.byteStream()?.use { it.readBounded(maxBytes + 1) } ?: throw IOException("empty response")
+            if (bytes.size > maxBytes) throw UpdateProblem("${asset.name} is larger than allowed. It was not used.")
+            bytes.toString(Charsets.UTF_8)
+        }
 
     /** Start-up: abandoned/installed update files are useless. */
     fun cleanUpOldDownloads() {

@@ -1,7 +1,7 @@
 MIMIC — COMPLETE DEVELOPMENT REPORT
 ===================================
-Last updated: 2026-11-14 (4.8.0-beta.1 — three switchable 3D styles from the owner's reference
-              images; built + tested on the emulator; NOT YET PUBLISHED — see section 4.8 at the end)
+Last updated: 2026-11-27 (4.8.1-beta.3 — BLA production pipeline and theme recovery;
+              validation in progress, not published; see dated entries at the end)
 Previous: 2026-11-09 (4.7.0-beta.4 — security hardening: 40-control audit, backup/network
               policy, release security gate, GitHub scanning; see docs/security/); 2026-11-05 session 3 (4.7.0-beta.3 — Floating Aura motion from the video); session 2 (4.7.0-beta.2 — Floating Aura rebuilt from the reference); session 1 (4.7.0-beta.1 — first Floating Aura, built from text only); 2026-11-02 session 3 (4.6.0-beta.3 — automatic playlist loading); session 2 (4.6.0-beta.2 — Mix preview); session 1 (4.6.0-beta.1 — playlist downloads with per-song selection +
               compact mini player, recovered from the second PC's APK); 2026-10-26 (Listen Together + automatic lyrics + icons, 4.5.0-beta.1 … beta.4)
@@ -12,8 +12,8 @@ new ChatGPT / Claude conversation without access to the repository.
 A. PROJECT IDENTITY
 -------------------
 App name ............ MImic
-Current version ..... 4.8.0-beta.1  (versionCode 400800034) — built, not yet released;
-                      last PUBLISHED release: 4.7.0-beta.4 (400700037)
+Current version ..... 4.8.1-beta.3 (versionCode 400800136), validation in progress;
+                      last PUBLISHED release: 4.8.1-beta.1 (400800134)
 Application ID ...... com.example.mimic  (never change)
 Repository .......... https://github.com/enoluca22-dota2/MImic  (PUBLIC — owner's decision on
                       2026-10-25, because the in-app updater downloads release assets anonymously)
@@ -1262,3 +1262,42 @@ Manually applied both Felt themes and verified stitched Auto navigation and its
 live preview. Felt Orange / Auto survived a cold launch. Screenshots and test/build
 logs remain in the earlier session's outputs directory. The updater's Android
 installer flow was not exercised; public release download and direct update were.
+
+PERMANENT BLA AND RECOVERY INTEGRATION - 2026-11-27 (IN PROGRESS)
+Continue existing Felt changes; no source reset or replacement signing identity.
+Worktree: MImic-bla, branch security/bla-integration. Beta.2 remains an internal
+validation fixture; planned public version beta.3 has derived versionCode 400800136.
+Official BLA source qybaihe/bla at dd9e72f53ad97e3eb228523ad25295029107bb63,
+npm bla-agents 3.6.1 pinned with lockfile/integrity, MIT. Node 24.19.0.
+Reviewed the six upstream skill Markdown files before pinned Codex/VS Code setup.
+Mutable @latest and broad weaving recipes are overridden by owner/project rules.
+Local MCP doctor/handshake passed. GUI client reload was not tested.
+Production Gradle APK artifacts now require R8 then every-DEX BLA stealth processing,
+independent checksum/trailer and original-byte validation, SDK dexdump and resource/
+native preservation, zipalign and original-key signing. Publication requires final
+signed hashes to match emulator tests. No bypass switch. Debug stays ordinary.
+Honest limitation: this BLA mode appends removable inert decoy text; class/type/
+string tables and method bodies are unchanged. It adds no method encryption or
+demonstrated JADX resistance. R8 provides the actual optimization/obfuscation.
+Fixed R8's missing Firestore geographic/status types by retaining required Firebase
+well-known types while stripping only duplicate protobuf classes. Added device and
+unit round-trip coverage. No broad missing-class suppression.
+Theme removal is persistent stable-ID hiding only. Active removal selects a safe
+visible fallback; final visible theme cannot be removed; no source/custom rows deleted.
+Recovery & Repair offers offline restoration, official compatible protected repair
+(same version only on explicit request, never downgrade), and allowlisted preference
+reset. Reset pauses playback/cancels sleep timer; preserves credentials/accounts,
+servers, custom themes, queue, playlists, favorites, history, downloads and files.
+No caches or personal repositories are cleared. Interrupted transfers discard partial
+files. Cached installer retries repeat checksum/package/version/certificate/BLA checks.
+PASS before final version bump: 369 Full + 245 Standard unit tests, 4 total skipped,
+0 failures; debug compile/build and first lint passed. All 8 pipeline refusal tests
+passed. Direct Android instrumentation: 17 tests passed; owned snapshot restored;
+no connected-test cleanup, uninstall, clear-data or downgrade.
+Internal beta.2 fixture: removed active Felt Orange through UI confirmation; changed
+to Classic Music Dark and retained firstInstallTime 2026-10-17 19:29:42. This fixture
+is for a real higher-version hidden-preference upgrade test on final beta.3.
+Final production build, final-APK recovery/playback/upgrade gate, security gate,
+comparison measurements, publication and live GitHub repair are still pending.
+Physical ARM hardware, live credentials/Navidrome/account flows and native ffmpeg on
+the Pixel_10a 16 KB emulator are not covered. Android Studio has not been opened.

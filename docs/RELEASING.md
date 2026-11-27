@@ -1,5 +1,42 @@
 # Releasing MImic
 
+## Mandatory R8 + BLA path
+
+See [BLA integration](security/BLA_INTEGRATION.md) and AGENTS.md. The release build
+now produces R8-optimized **unsigned, BLA-processed** APKs through AGP's artifact
+transform. `scripts/release.sh` aligns/verifies and signs only those outputs with
+the existing key. Do not copy raw APKs out of `app/build/outputs/apk`: they are
+private R8-only intermediates. Never publish the comparison APK or R8 mappings.
+
+Install Node 24.19.0 and Python, with Android SDK build-tools 36.0.0. BLA 3.6.1 and
+all npm dependencies are locked; Gradle runs npm ci --ignore-scripts. Failed
+protection, integrity, signing, Android regression or emulator checks block release.
+Debug builds remain ordinary debug builds. Do not add skip-BLA switches.
+
+Keep an existing previous signed MImic release on the emulator. The local release
+script runs direct Android regression tests with a temporary saved/restored
+snapshot, then final signed APK update, navigation and local/background/lock-screen
+playback checks. It never uninstalls or clears data. `MIMIC_SMOKE_TRACK` defaults
+to the existing local `Artwork Red` fixture. Same-version repeats need an exact
+matching upgrade receipt; otherwise deliberately restore the prior-release baseline
+snapshot before retrying. Do not downgrade or claim an upgrade that did not happen.
+
+Release assets additionally include protection-report.json and
+emulator-verification.json. These identify the tested APK hashes and the actual
+limited BLA mode. No extra JADX resistance beyond R8 is demonstrated. After
+publication, test the actual Beta updater on the saved previous-release snapshot.
+
+For recovery upgrade evidence, deliberately prepare an internal lower-version
+emulator fixture using `python tools/bla/verify_recovery.py --prepare-upgrade`
+before installing the final APK. Save an owner-state snapshot first. The release
+gate checks hidden-theme persistence against that fixture, then uses its own
+temporary snapshot for final-APK removal/last-theme/offline restore/reset/reboot
+and same-version reinstall tests. It restores that snapshot and never uninstalls.
+Live official GitHub repair is checked after publication; do not expose a draft
+or untested APK just to make it appear in the updater. See THEME_RECOVERY.md.
+
+The rules below still apply; signing now occurs after mandatory BLA processing.
+
 Releases are GitHub Releases of <https://github.com/Eno-Dev-Tech/MImic>. The app's
 Settings → App Updates reads them, so **every release must follow these rules** or phones won't
 see (or won't accept) it.

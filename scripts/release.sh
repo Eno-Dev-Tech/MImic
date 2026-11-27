@@ -24,6 +24,8 @@ BT=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -1) || true
 [[ -n "$BT" ]] || die "Android build-tools not found under $SDK"
 APKSIGNER="$BT/apksigner.bat"; [[ -f "$APKSIGNER" ]] || APKSIGNER="$BT/apksigner"
 AAPT2="$BT/aapt2.exe"; [[ -f "$AAPT2" ]] || AAPT2="$BT/aapt2"
+PY="$(command -v python3 || command -v python)"
+GRADLE_ARGS=(--no-configuration-cache --max-workers=2 "-Dorg.gradle.jvmargs=-Xmx5g -Dfile.encoding=UTF-8" "-Pkotlin.daemon.jvmargs=-Xmx4g")
 
 VERSION=$(sed -nE 's/^\s*versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -1)
 [[ -n "$VERSION" ]] || die "versionName not found in app/build.gradle.kts"
@@ -37,29 +39,31 @@ step "Checks"
 [[ -f keystore.properties ]] || die "keystore.properties missing — releases must be signed with MImic's release key (docs/RELEASING.md)"
 grep -q "^## $VERSION" CHANGELOG.md || die "CHANGELOG.md has no '## $VERSION' section"
 if $PUBLISH; then
-  [[ -z "$(git status --porcelain -- app scripts docs CHANGELOG.md README.md)" ]] || die "uncommitted changes — commit first"
+  [[ -z "$(git status --porcelain -- app scripts tools .github AGENTS.md CLAUDE.md CHANGELOG.md README.md docs)" ]] || die "uncommitted changes — commit first"
   gh release view "$TAG" >/dev/null 2>&1 && die "release $TAG already exists — bump versionName"
   git rev-parse "$TAG" >/dev/null 2>&1 && die "tag $TAG already exists — bump versionName"
 fi
 
 step "Unit tests (both editions)"
-./gradlew --no-configuration-cache :app:testFullDebugUnitTest :app:testStandardDebugUnitTest
+"$PY" -m unittest discover -s tools/bla -p 'test_*.py'
+./gradlew "${GRADLE_ARGS[@]}" :app:testFullDebugUnitTest :app:testStandardDebugUnitTest
+
+step "Direct Android regressions (snapshot-preserved emulator; no connected-test cleanup)"
+"$PY" tools/bla/android_regression.py
 
 step "Lint"
-./gradlew --no-configuration-cache :app:lintFullRelease
+./gradlew "${GRADLE_ARGS[@]}" :app:lintFullRelease
 
-step "Signed release build"
-./gradlew --no-configuration-cache :app:assembleFullRelease :app:assembleStandardRelease
+step "R8 optimized unsigned build + mandatory BLA DEX verification"
+./gradlew "${GRADLE_ARGS[@]}" :app:assembleFullRelease :app:assembleStandardRelease
+
+step "Locked BLA dependency audit"
+mkdir -p build/security
+(cd tools/bla && npm audit --omit=dev --audit-level=high --json) > build/security/bla-npm-audit.json
 
 step "Collect + verify"
 rm -rf dist && mkdir -p dist
-cp app/build/outputs/apk/full/release/app-full-universal-release.apk        "dist/MImic-$TAG-full.apk"
-cp app/build/outputs/apk/full/release/app-full-arm64-v8a-release.apk       "dist/MImic-$TAG-full-arm64-v8a.apk"
-cp app/build/outputs/apk/full/release/app-full-armeabi-v7a-release.apk     "dist/MImic-$TAG-full-armeabi-v7a.apk"
-cp app/build/outputs/apk/full/release/app-full-x86_64-release.apk          "dist/MImic-$TAG-full-x86_64.apk"
-STD=app/build/outputs/apk/standard/release/app-standard-universal-release.apk
-[[ -f "$STD" ]] || STD=app/build/outputs/apk/standard/release/app-standard-release.apk
-cp "$STD" "dist/MImic-$TAG-standard.apk"
+"$PY" -I tools/bla/apk_pipeline.py stage-release "$VERSION" dist
 # Same formula as versionCodeFor in app/build.gradle.kts (stable suffix 99; alpha N, beta 33+N, rc 66+N).
 CODE=$(awk -v v="$VERSION" 'BEGIN {
   split(v, a, "-"); split(a[1], n, "."); pre = tolower(substr(v, length(a[1]) + 2))
@@ -77,6 +81,10 @@ for apk in dist/*.apk; do
 done
 (cd dist && sha256sum *.apk > SHA256SUMS.txt)
 cat dist/SHA256SUMS.txt
+
+step "Final signed APK emulator, playback and upgrade gate (never uninstalls)"
+"$PY" tools/bla/verify_emulator.py --dist dist
+"$PY" -I tools/bla/apk_pipeline.py verify-release dist --require-emulator
 
 # Release notes = this version's CHANGELOG section (plain text; the app shows it as-is).
 awk -v v="## $VERSION" 'index($0, v)==1 {on=1; next} /^## / && on {exit} on' CHANGELOG.md > dist/NOTES.md
@@ -96,7 +104,7 @@ step "Publish $TAG"
 git tag -a "$TAG" -m "MImic $TAG"
 git push origin HEAD "$TAG"
 FLAGS=(); $PRERELEASE && FLAGS+=(--prerelease)
-gh release create "$TAG" dist/*.apk dist/SHA256SUMS.txt dist/*.cdx.json --title "MImic $TAG" --notes-file dist/NOTES.md --verify-tag "${FLAGS[@]}"
+gh release create "$TAG" dist/*.apk dist/SHA256SUMS.txt dist/*.cdx.json dist/protection-report.json dist/emulator-verification.json --title "MImic $TAG" --notes-file dist/NOTES.md --verify-tag "${FLAGS[@]}"
 
 step "Verify the published release"
 REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)

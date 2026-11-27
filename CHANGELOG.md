@@ -1,3 +1,17 @@
+## 4.8.1-beta.3
+
+- Hide individual themes with a confirmed minus control; retain choices across restarts and updates, switch safely when hiding the active theme and protect the last available theme.
+- Added Recovery & Repair to App Updates: restore removed themes offline, repair/reinstall an official compatible protected release and reset configurable settings while retaining personal data.
+- Explicit repair can reinstall the same version. All APKs require the original signature, exact release identity, checksums and protection evidence; downgrades remain blocked.
+- Interrupted downloads discard partial files, and cached installer retries are verified again.
+
+- Enabled R8 release optimization and obfuscation while preserving both Felt themes and all navigation styles.
+- Added pinned BLA 3.6.1 stealth DEX processing, independent integrity checks, alignment and original-key signing to production APK builds.
+- BLA's validated mode adds removable decoy text; it does not add method encryption or demonstrated JADX resistance beyond R8.
+- Production publication requires final signed APK emulator and upgrade verification. Debug builds remain usable for development.
+- Retained Firestore's required geographic/status types while excluding only duplicate protobuf classes.
+- Beta.2 was an internal validation fixture and was not published.
+
 ## 4.8.1-beta.1
 
 - Added Felt Classic and Felt Orange themes with textured, stitched cards and tactile player controls.

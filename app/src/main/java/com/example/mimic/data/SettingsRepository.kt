@@ -15,6 +15,7 @@ data class AppSettings(
     val discoveryCountry: com.example.mimic.data.online.DiscoveryCountry = com.example.mimic.data.online.DiscoveryCountry.WORLDWIDE,
     val sponsorBlockEnabled: Boolean = false,
     val themeId: String = ThemeRegistry.DEFAULT_ID,
+    val removedThemeIds: Set<String> = emptySet(),
     /** 4.8: the theme in use before a 3D style was picked (null = none recorded). */
     val lastFlatThemeId: String? = null,
     val sleepTimerMinutes: Int = 0,
@@ -37,19 +38,23 @@ private inline fun <reified T : Enum<T>> decode(value: String?, fallback: T): T 
     value?.let { runCatching { enumValueOf<T>(it) }.getOrNull() } ?: fallback
 
 /** Lightweight user preferences backed by DataStore. */
-class SettingsRepository(private val context: Context) {
+class SettingsRepository(
+    context: Context,
+    private val store: androidx.datastore.core.DataStore<androidx.datastore.preferences.core.Preferences> = context.dataStore,
+) {
     suspend fun setDiscoveryCountry(country: com.example.mimic.data.online.DiscoveryCountry) {
-        context.dataStore.edit { it[Keys.DISCOVERY_COUNTRY] = country.name }
+        store.edit { it[Keys.DISCOVERY_COUNTRY] = country.name }
     }
 
     suspend fun setSponsorBlockEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.SPONSOR_BLOCK] = enabled }
+        store.edit { it[Keys.SPONSOR_BLOCK] = enabled }
     }
 
     private object Keys {
         val DISCOVERY_COUNTRY = stringPreferencesKey("home_discovery_country")
         val SPONSOR_BLOCK = booleanPreferencesKey("sponsorblock_enabled")
         val THEME_ID = stringPreferencesKey("theme_id")
+        val REMOVED_THEMES = androidx.datastore.preferences.core.stringSetPreferencesKey("removed_theme_ids")
         val SLEEP = intPreferencesKey("sleep_timer_minutes")
         val LAYOUT = stringPreferencesKey("player_layout")
         val ART_SHAPE = stringPreferencesKey("artwork_shape")
@@ -99,10 +104,24 @@ class SettingsRepository(private val context: Context) {
         // Library scanning (4.3)
         val SCAN_EXCLUDED = androidx.datastore.preferences.core.stringSetPreferencesKey("scan_excluded_folders")
         val SCAN_MIN_SEC = intPreferencesKey("scan_min_duration_sec")
+
+        // Explicit allowlist: never clear this datastore wholesale or erase unknown future keys.
+        // Search/listening history and all personal repositories remain untouched.
+        val RESETTABLE = setOf<androidx.datastore.preferences.core.Preferences.Key<*>>(
+            DISCOVERY_COUNTRY, SPONSOR_BLOCK, THEME_ID, REMOVED_THEMES, SLEEP, LAYOUT,
+            ART_SHAPE, ART_SIZE, SHOW_SHUFFLE_REPEAT, SHOW_SECONDARY, HOME_ORDER, HOME_HIDDEN,
+            NAV_STYLE, PLAYER_BG, DYN_GRADIENT, DYN_BLUR, DYN_ANIMATED, DYN_INTENSITY,
+            DYN_SHAPE, DYN_GLASS, DYN_SIZE, DYN_BRIGHTNESS, DYN_CONTRAST, DYN_REDUCED,
+            LOCK_STYLE, CONTROL_STYLE, VOLUME_CONTROL, LAST_FLAT_THEME, GLASS_QUALITY,
+            SPEED, KEEP_PITCH, CROSSFADE, SKIP_SILENCE, REPLAY_GAIN, EQ_ON, EQ_BANDS, BASS,
+            HAPTIC_SEEK, RESUME_ON_CONNECT, LIB_ORDER, LIB_HIDDEN, LIB_ALBUMS_GRID,
+            LIB_ARTISTS_GRID, LIB_SONG_SORT, LIB_SONGS_REVERSED, LIB_GROUP_SORT,
+            LIB_GROUPS_REVERSED, SCAN_EXCLUDED, SCAN_MIN_SEC,
+        )
     }
 
     /** Which phone music is shown (folders, minimum length) — 4.3. */
-    val scanConfig: Flow<LibraryScanConfig> = context.dataStore.data.map { p ->
+    val scanConfig: Flow<LibraryScanConfig> = store.data.map { p ->
         LibraryScanConfig(
             excludedFolders = p[Keys.SCAN_EXCLUDED].orEmpty(),
             minDurationSec = (p[Keys.SCAN_MIN_SEC] ?: LibraryScanConfig.DEFAULT_MIN_SEC).coerceIn(0, 600),
@@ -110,18 +129,18 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setScanConfig(c: LibraryScanConfig) {
-        context.dataStore.edit {
+        store.edit {
             it[Keys.SCAN_EXCLUDED] = c.excludedFolders
             it[Keys.SCAN_MIN_SEC] = c.minDurationSec
         }
     }
 
     /** All app settings as backup entries (4.3). */
-    suspend fun backupPrefs() = com.example.mimic.data.backup.PrefsBackup.snapshot(context.dataStore)
+    suspend fun backupPrefs() = com.example.mimic.data.backup.PrefsBackup.snapshot(store)
 
     /** Restores backed-up settings over the current ones (keys not in the backup stay). */
     suspend fun restorePrefs(values: Map<String, com.example.mimic.data.backup.BackupPref>) =
-        com.example.mimic.data.backup.PrefsBackup.restore(context.dataStore, values)
+        com.example.mimic.data.backup.PrefsBackup.restore(store, values)
 
     private fun decodeTabs(csv: String?): List<LibraryTab> =
         csv?.split(",")?.mapNotNull { runCatching { LibraryTab.valueOf(it) }.getOrNull() } ?: emptyList()
@@ -129,11 +148,12 @@ class SettingsRepository(private val context: Context) {
     private fun decodeSections(csv: String?): List<HomeSection> =
         csv?.split(",")?.mapNotNull { runCatching { HomeSection.valueOf(it) }.getOrNull() } ?: emptyList()
 
-    val settings: Flow<AppSettings> = context.dataStore.data.map { prefs ->
+    val settings: Flow<AppSettings> = store.data.map { prefs ->
         AppSettings(
             discoveryCountry = decode(prefs[Keys.DISCOVERY_COUNTRY], com.example.mimic.data.online.DiscoveryCountry.WORLDWIDE),
             sponsorBlockEnabled = prefs[Keys.SPONSOR_BLOCK] ?: false,
             themeId = ThemeRegistry.resolveSelection(prefs[Keys.THEME_ID]),
+            removedThemeIds = prefs[Keys.REMOVED_THEMES].orEmpty(),
             lastFlatThemeId = prefs[Keys.LAST_FLAT_THEME],
             sleepTimerMinutes = prefs[Keys.SLEEP] ?: 0,
             playerLayout = PlayerLayoutConfig(
@@ -192,23 +212,43 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setThemeId(id: String) {
-        context.dataStore.edit { it[Keys.THEME_ID] = id }
+        store.edit { it[Keys.THEME_ID] = id }
+    }
+
+    /** Removal and active-theme fallback are one atomic preference transaction. */
+    suspend fun removeTheme(id: String, knownIds: List<String>): Boolean {
+        var changed = false
+        store.edit { prefs ->
+            val plan = ThemeVisibility.remove(knownIds, prefs[Keys.REMOVED_THEMES].orEmpty(),
+                ThemeRegistry.resolveSelection(prefs[Keys.THEME_ID]), id) ?: return@edit
+            prefs[Keys.REMOVED_THEMES] = plan.removedIds
+            prefs[Keys.THEME_ID] = plan.selectedId
+            changed = true
+        }
+        return changed
+    }
+
+    suspend fun restoreRemovedThemes() { store.edit { it.remove(Keys.REMOVED_THEMES) } }
+
+    /** Appearance/playback/display/scan preferences only; no account, DB or music deletion. */
+    suspend fun resetConfigurablePreferences() {
+        store.edit { prefs -> Keys.RESETTABLE.forEach { prefs.remove(it) } }
     }
 
     /** Applies [id] and, in the same write, remembers [previousFlatId] for "Back to …" (4.8). */
     suspend fun setThemeIdRememberingFlat(id: String, previousFlatId: String?) {
-        context.dataStore.edit {
+        store.edit {
             it[Keys.THEME_ID] = id
             if (previousFlatId != null) it[Keys.LAST_FLAT_THEME] = previousFlatId
         }
     }
 
     suspend fun setSleepTimerMinutes(minutes: Int) {
-        context.dataStore.edit { it[Keys.SLEEP] = minutes }
+        store.edit { it[Keys.SLEEP] = minutes }
     }
 
     suspend fun setPlayerLayout(config: PlayerLayoutConfig) {
-        context.dataStore.edit {
+        store.edit {
             it[Keys.LAYOUT] = config.layout.name
             it[Keys.ART_SHAPE] = config.artworkShape.name
             it[Keys.ART_SIZE] = config.artworkSize.name
@@ -221,7 +261,7 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setDynamicPlayer(c: DynamicPlayerConfig) {
-        context.dataStore.edit {
+        store.edit {
             it[Keys.DYN_GRADIENT] = c.gradient
             it[Keys.DYN_BLUR] = c.artworkBlur
             it[Keys.DYN_ANIMATED] = c.animatedBackground
@@ -237,7 +277,7 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setHomeConfig(config: HomeConfig) {
-        context.dataStore.edit {
+        store.edit {
             it[Keys.HOME_ORDER] = config.sectionOrder.joinToString(",") { s -> s.name }
             it[Keys.HOME_HIDDEN] = config.hidden.joinToString(",") { s -> s.name }
             it[Keys.NAV_STYLE] = config.navStyle.name
@@ -245,11 +285,11 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setEqualizerEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.EQ_ON] = enabled }
+        store.edit { it[Keys.EQ_ON] = enabled }
     }
 
     suspend fun setAudio(a: AudioPrefs) {
-        context.dataStore.edit {
+        store.edit {
             it[Keys.SPEED] = a.speed
             it[Keys.KEEP_PITCH] = a.keepPitch
             it[Keys.CROSSFADE] = a.crossfadeSec
@@ -264,11 +304,11 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setRecentSearches(list: List<String>) {
-        context.dataStore.edit { it[Keys.RECENT_SEARCHES] = list.joinToString("\n") { q -> q.replace('\n', ' ') } }
+        store.edit { it[Keys.RECENT_SEARCHES] = list.joinToString("\n") { q -> q.replace('\n', ' ') } }
     }
 
     suspend fun setLibraryConfig(config: LibraryConfig) {
-        context.dataStore.edit {
+        store.edit {
             it[Keys.LIB_ORDER] = config.tabOrder.joinToString(",") { t -> t.name }
             it[Keys.LIB_HIDDEN] = config.hiddenTabs.joinToString(",") { t -> t.name }
             it[Keys.LIB_ALBUMS_GRID] = config.albumsGrid
@@ -281,6 +321,6 @@ class SettingsRepository(private val context: Context) {
     }
 
     suspend fun setGlassQuality(quality: GlassQuality) {
-        context.dataStore.edit { it[Keys.GLASS_QUALITY] = quality.name }
+        store.edit { it[Keys.GLASS_QUALITY] = quality.name }
     }
 }

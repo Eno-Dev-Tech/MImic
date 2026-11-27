@@ -228,6 +228,15 @@ def sign_apk(source: Path, target: Path):
     validate_embedded(target)
 
 
+def prepare_dist(dist: Path):
+    expected = ROOT.resolve() / 'dist'
+    if dist.resolve() != expected:
+        raise RuntimeError('Refusing to clear a directory outside the project dist folder')
+    if dist.exists():
+        shutil.rmtree(dist)
+    dist.mkdir()
+
+
 def stage_release(version: str, dist: Path):
     if dist.resolve() != (ROOT / 'dist').resolve():
         raise RuntimeError('Release staging must use the project dist directory')
@@ -310,12 +319,16 @@ if __name__ == '__main__':
     stage = sub.add_parser('stage-release')
     stage.add_argument('version')
     stage.add_argument('dist', type=Path)
+    prepare = sub.add_parser('prepare-dist')
+    prepare.add_argument('dist', type=Path)
     verify = sub.add_parser('verify-release')
     verify.add_argument('dist', type=Path)
     verify.add_argument('--require-emulator', action='store_true')
     args = parser.parse_args()
     if args.command == 'protect-directory':
         protect_directory(args.input, args.output)
+    elif args.command == 'prepare-dist':
+        prepare_dist(args.dist)
     elif args.command == 'stage-release':
         stage_release(args.version, args.dist)
     else:

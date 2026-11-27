@@ -214,7 +214,12 @@ def verify(phone, apk: Path):
         phone.tap('Cancel')
         phone.tap('Reset App Settings')
         phone.tap('Reset settings')
+        find(phone, 'Default settings restored. Your personal data has been kept.')
         phone.launch()
+        if phone.current_theme() != 'Current: Classic Music Dark':
+            raise RuntimeError('Settings reset did not restore the default appearance')
+        gallery(phone)
+        find(phone, 'Remove Felt Orange')
         if download_signature(phone) != personal:
             raise RuntimeError('Settings reset changed the visible downloads/favorites fixture')
         result['visibleDownloadsAndFavoritesPreserved'] = True

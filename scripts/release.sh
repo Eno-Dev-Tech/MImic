@@ -63,7 +63,7 @@ mkdir -p build/security
 (cd tools/bla && npm audit --omit=dev --audit-level=high --json) > build/security/bla-npm-audit.json
 
 step "Collect + verify"
-rm -rf dist && mkdir -p dist
+"$PY" -I tools/bla/apk_pipeline.py prepare-dist dist
 "$PY" -I tools/bla/apk_pipeline.py stage-release "$VERSION" dist
 # Same formula as versionCodeFor in app/build.gradle.kts (stable suffix 99; alpha N, beta 33+N, rc 66+N).
 CODE=$(awk -v v="$VERSION" 'BEGIN {

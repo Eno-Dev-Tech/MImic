@@ -57,7 +57,8 @@ def screenshot(phone, name):
 def remove(phone, name):
     print('Removing theme through its confirmation:', name, flush=True)
     phone.tap('Remove ' + name)
-    if 'Remove theme?' not in labels(phone) or 'You can restore this theme later from Settings > Updates.' not in labels(phone):
+    confirmation = labels(phone)
+    if 'Remove theme?' not in confirmation or 'You can restore this theme later from Settings > Updates.' not in confirmation:
         raise RuntimeError('Theme removal confirmation contract changed')
     phone.tap('Remove')
 
@@ -236,6 +237,14 @@ def verify(phone, apk: Path):
             raise RuntimeError('Recovery changed the original install identity')
         result['originalInstallRecordPreserved'] = True
         return dict(apkSha256=sha(apk.read_bytes()), **result)
+    except BaseException:
+        try:
+            screenshot(phone, 'recovery-failure.png')
+            folder = ROOT / 'build/bla/screenshots'
+            phone.command('pull', '/sdcard/mimic-bla-validation.xml', str(folder / 'recovery-failure.xml'))
+        except Exception:
+            pass  # Diagnostic capture is best effort; the original failure is re-raised.
+        raise
     finally:
         restored = phone.command('emu', 'avd', 'snapshot', 'load', snapshot)
         if 'KO:' in restored or 'OK' not in restored:

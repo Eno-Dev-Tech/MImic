@@ -56,19 +56,25 @@ class Emulator:
         return int(match[1])
 
     def tree(self):
-        # Poll for an accessibility root after an actual UI transition.
-        for _ in range(4):
-            self.shell('uiautomator', 'dump', '/sdcard/mimic-bla-validation.xml')
-            raw = self.shell('cat', '/sdcard/mimic-bla-validation.xml')
+        # A failed dump may exit zero and leave yesterday's XML in place. Never
+        # let an old dialog authorize a coordinate tap on the current screen.
+        remote = '/sdcard/mimic-bla-validation.xml'
+        for _ in range(6):
             try:
+                self.shell('rm', '-f', remote)
+                output = self.shell('uiautomator', 'dump', remote)
+                if remote not in output or 'dumped to:' not in output:
+                    time.sleep(.5)
+                    continue
+                raw = self.shell('cat', remote)
                 root = ET.fromstring(raw)
                 if any(n.get('text') or n.get('content-desc') for n in root.iter('node')):
                     self.screen = root
                     return self.screen
                 time.sleep(.5)
-            except ET.ParseError:
+            except (ET.ParseError, subprocess.CalledProcessError):
                 time.sleep(.5)
-        raise RuntimeError('No stable MImic accessibility tree')
+        raise RuntimeError('No fresh stable accessibility tree')
 
     @staticmethod
     def bounds(node):
@@ -76,12 +82,16 @@ class Emulator:
         return values if len(values) == 4 else [0, 0, 0, 0]
 
     def tap(self, label, *, bottom=True, exclude_edit=False):
-        tree = self.tree()
-        matches = [n for n in tree.iter('node') if n.get('text') == label or n.get('content-desc') == label]
-        if exclude_edit:
-            matches = [n for n in matches if n.get('class') != 'android.widget.EditText']
-        matches = [n for n in matches if self.bounds(n)[2] > self.bounds(n)[0] and self.bounds(n)[3] > self.bounds(n)[1]]
-        if not matches:
+        for _ in range(4):
+            tree = self.tree()
+            matches = [n for n in tree.iter('node') if n.get('text') == label or n.get('content-desc') == label]
+            if exclude_edit:
+                matches = [n for n in matches if n.get('class') != 'android.widget.EditText']
+            matches = [n for n in matches if self.bounds(n)[2] > self.bounds(n)[0] and self.bounds(n)[3] > self.bounds(n)[1]]
+            if matches:
+                break
+            time.sleep(.4)
+        else:
             raise RuntimeError(f'Missing visible UI target: {label}')
         chosen = sorted(matches, key=lambda n: self.bounds(n)[1], reverse=bottom)[0]
         x1, y1, x2, y2 = self.bounds(chosen)

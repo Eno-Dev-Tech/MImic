@@ -27,6 +27,13 @@ def find(phone, label, attempts=25):
 def gallery(phone):
     phone.launch()
     phone.tap('Settings')
+    # Android can restore Settings' scroll position after a reboot/cold launch.
+    for _ in range(25):
+        if 'Theme Studio' in labels(phone):
+            break
+        scroll(phone, upward=True)
+    else:
+        raise RuntimeError('Missing Theme Studio after returning to Settings')
     phone.tap('Theme Studio')
 
 

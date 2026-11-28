@@ -41,6 +41,18 @@ import com.example.mimic.ui.theme.MImicTheme
 class MainActivity : androidx.fragment.app.FragmentActivity() {
 
     private val playerViewModel: PlayerViewModel by viewModels()
+    private var useDarkSystemBarIcons = false
+
+    private fun applySystemBarAppearance() {
+        val bars = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        bars.isAppearanceLightStatusBars = useDarkSystemBarIcons
+        bars.isAppearanceLightNavigationBars = useDarkSystemBarIcons
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) applySystemBarAppearance()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,15 +64,9 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
             val activeTheme by viewModel.activeTheme.collectAsStateWithLifecycle()
             val adaptiveSeed by viewModel.adaptiveSeed.collectAsStateWithLifecycle()
-            if (com.example.mimic.ui.designsystem.ThemeRegistry.usesHardwareControls(activeTheme.id) ||
-                activeTheme.id == com.example.mimic.ui.designsystem.ThemeRegistry.PLASMA_GLOW_ID
-            ) {
-                androidx.compose.runtime.DisposableEffect(Unit) {
-                    val bars = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
-                    val previousAppearance = bars.isAppearanceLightStatusBars
-                    bars.isAppearanceLightStatusBars = false
-                    onDispose { bars.isAppearanceLightStatusBars = previousAppearance }
-                }
+            androidx.compose.runtime.SideEffect {
+                useDarkSystemBarIcons = !activeTheme.colors.isDark
+                applySystemBarAppearance()
             }
             MImicTheme(theme = activeTheme, quality = settings.glassQuality, adaptiveSeed = adaptiveSeed) {
                 Surface(

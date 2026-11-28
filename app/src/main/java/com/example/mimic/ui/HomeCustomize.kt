@@ -45,7 +45,6 @@ import com.example.mimic.ui.navigation.navigationMotion
 fun HomeCustomizeScreen(vm: PlayerViewModel, onBack: () -> Unit) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val config = settings.homeConfig
-    var previewRoute by rememberSaveable { mutableStateOf(TopLevel.HOME.route) }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         Row(
@@ -61,33 +60,7 @@ fun HomeCustomizeScreen(vm: PlayerViewModel, onBack: () -> Unit) {
             )
         }
 
-        SelectRow(
-            "Navigation style",
-            NavStyle.entries.map { it.label },
-            config.navStyle.ordinal,
-        ) { vm.setHomeConfig(config.copy(navStyle = NavStyle.entries[it])) }
-        Text(
-            "Auto follows the active theme, including the stitched Sliding Pill on Felt.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-
-        config.navStyle.navigationMotion(settings.themeId)?.let { motion ->
-            Text(
-                "Navigation preview",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(start = 16.dp, top = 12.dp),
-            )
-            AnimatedMimicNavigation(
-                tabs = mimicMotionTabs,
-                selectedKey = previewRoute,
-                onSelect = { previewRoute = it },
-                motion = motion,
-                palette = MotionPalette.forTheme(settings.themeId),
-                reduceMotion = LocalGlass.current.motionScale == 0f,
-            )
-        }
+        NavigationStylePicker(config.navStyle, settings.themeId) { vm.setHomeConfig(config.copy(navStyle = it)) }
 
         Text(
             "Home sections",
@@ -130,4 +103,38 @@ fun HomeCustomizeScreen(vm: PlayerViewModel, onBack: () -> Unit) {
         }
         Spacer(Modifier.height(24.dp))
     }
+}
+
+/** Shared appearance picker; preview taps never navigate the app. */
+@Composable
+internal fun NavigationStylePicker(selected: NavStyle, themeId: String, onPick: (NavStyle) -> Unit) {
+    var previewRoute by rememberSaveable { mutableStateOf(TopLevel.HOME.route) }
+    SelectRow(
+        "Navigation style",
+        NavStyle.entries.map { it.label },
+        selected.ordinal,
+    ) { onPick(NavStyle.entries[it]) }
+    Text(
+        "Auto follows the active theme, including the stitched Sliding Pill on Felt.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 16.dp),
+    )
+
+    selected.navigationMotion(themeId)?.let { motion ->
+        Text(
+            "Navigation preview",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(start = 16.dp, top = 12.dp),
+        )
+        AnimatedMimicNavigation(
+            tabs = mimicMotionTabs,
+            selectedKey = previewRoute,
+            onSelect = { previewRoute = it },
+            motion = motion,
+            palette = MotionPalette.forTheme(themeId),
+            reduceMotion = LocalGlass.current.motionScale == 0f,
+        )
+    }
+
 }

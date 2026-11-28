@@ -31,11 +31,39 @@ class Emulator:
         self.device = self.command('emu', 'avd', 'name').splitlines()[0].strip()
         self.screen = None
 
-    def command(self, *args):
-        return run([self.adb, '-s', self.serial, *args])
+    def command(self, *args, timeout=None):
+        return run([self.adb, '-s', self.serial, *args], timeout=timeout)
 
-    def shell(self, *args):
-        return self.command('shell', *args)
+    def shell(self, *args, timeout=None):
+        return self.command('shell', *args, timeout=timeout)
+
+    def reboot(self, wait_seconds=120):
+        before = self.shell('cat', '/proc/sys/kernel/random/boot_id', timeout=5).strip()
+        boot_id_pattern = r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}'
+        if not re.fullmatch(boot_id_pattern, before):
+            raise RuntimeError('Missing kernel boot identity before reboot')
+        command_status = 'completed'
+        try:
+            # The host adb-reboot service stalled after snapshot restores here.
+            # A power-service reboot is independently verified below; a dropped
+            # transport connection by itself never counts as a successful reboot.
+            self.shell('svc', 'power', 'reboot', '--no-wait', timeout=15)
+        except subprocess.TimeoutExpired:
+            command_status = 'transport timeout; boot identity verification required'
+        except subprocess.CalledProcessError:
+            command_status = 'transport disconnected; boot identity verification required'
+        deadline = time.monotonic() + wait_seconds
+        while time.monotonic() < deadline:
+            try:
+                boot = self.shell('cat', '/proc/sys/kernel/random/boot_id', timeout=5).strip()
+                completed = self.shell('getprop', 'sys.boot_completed', timeout=5).strip()
+                if re.fullmatch(boot_id_pattern, boot) and boot != before and completed == '1':
+                    return dict(previousBootId=before, bootId=boot, bootCompleted=True,
+                                commandStatus=command_status)
+            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+                pass  # Reboot drops ADB; the required changed boot ID is still enforced.
+            time.sleep(1)
+        raise RuntimeError('Reboot was not proved by a changed kernel boot ID and completed startup')
 
     def installed(self):
         text = self.shell('dumpsys', 'package', PACKAGE)
@@ -45,7 +73,20 @@ class Emulator:
             raise RuntimeError('Previous MImic release must already be installed')
         return dict(versionCode=int(code[1]), firstInstallTime=first[1].strip())
 
+    def verify_installed_apk(self, apk):
+        paths = self.shell('pm', 'path', PACKAGE).splitlines()
+        if len(paths) != 1 or not paths[0].startswith('package:/data/app/'):
+            raise RuntimeError('Expected one installed standalone MImic APK')
+        path = paths[0].removeprefix('package:').strip()
+        match = re.match(r'([0-9a-f]{64})\s', self.shell('sha256sum', path))
+        if not match or match[1] != sha(apk.read_bytes()):
+            raise RuntimeError('Installed APK bytes do not match the final signed artifact')
+        return match[1]
+
     def launch(self):
+        self.shell('input', 'keyevent', '224')
+        self.shell('wm', 'dismiss-keyguard')
+        self.shell('cmd', 'statusbar', 'collapse')
         self.shell('am', 'force-stop', PACKAGE)
         text = self.shell('am', 'start', '-W', '-n', PACKAGE + '/.MainActivity')
         if 'Status: ok' not in text:
@@ -53,7 +94,24 @@ class Emulator:
         match = re.search(r'TotalTime:\s*(\d+)', text)
         if not match:
             raise RuntimeError('Missing measured startup time')
+        for _ in range(20):
+            try:
+                self.require_app_focus()
+                break
+            except RuntimeError:
+                time.sleep(.25)
+        else:
+            self.require_app_focus()
         return int(match[1])
+
+    def require_app_focus(self):
+        state = self.shell('dumpsys', 'window')
+        focus = next((line.strip() for line in state.splitlines() if 'mCurrentFocus=' in line), '')
+        focused_app = next((line for line in state.splitlines() if 'mFocusedApp=' in line), '')
+        own_window = PACKAGE + '/' in focus
+        own_popup = ('PopupWindow:' in focus or ' Pop-Up Window}' in focus) and PACKAGE + '/' in focused_app
+        if not (own_window or own_popup):
+            raise RuntimeError('MImic is not the focused UI: ' + (focus or 'no focused window'))
 
     def tree(self):
         # A failed dump may exit zero and leave yesterday's XML in place. Never
@@ -78,13 +136,43 @@ class Emulator:
 
     @staticmethod
     def bounds(node):
-        values = [int(x) for x in re.findall(r'\d+', node.get('bounds', ''))]
+        values = [int(x) for x in re.findall(r'-?\d+', node.get('bounds', ''))]
         return values if len(values) == 4 else [0, 0, 0, 0]
 
+    @staticmethod
+    def visible_bounds(tree, node):
+        parents = {child: parent for parent in tree.iter() for child in parent}
+        left, top, right, bottom = Emulator.bounds(node)
+        parent = parents.get(node)
+        while parent is not None:
+            if parent.get('bounds'):
+                x1, y1, x2, y2 = Emulator.bounds(parent)
+                left, top = max(left, x1), max(top, y1)
+                right, bottom = min(right, x2), min(bottom, y2)
+            parent = parents.get(parent)
+        if right <= left or bottom <= top:
+            raise RuntimeError('UI control has no visible touch area')
+        return left, top, right, bottom
+
+    @staticmethod
+    def click_target(tree, node):
+        parents = {child: parent for parent in tree.iter() for child in parent}
+        while node is not None:
+            if node.get('enabled') == 'false':
+                raise RuntimeError('UI target is disabled')
+            # Android marks the selected tab non-clickable even though its real
+            # selectable hit area still handles reselect/pop-to-root touches.
+            if node.get('clickable') == 'true' or (node.get('selected') == 'true' and node.get('focusable') == 'true'):
+                return node
+            node = parents.get(node)
+        raise RuntimeError('UI label has no enabled clickable control')
+
     def tap(self, label, *, bottom=True, exclude_edit=False):
+        self.require_app_focus()
         for _ in range(4):
             tree = self.tree()
-            matches = [n for n in tree.iter('node') if n.get('text') == label or n.get('content-desc') == label]
+            matches = [n for n in tree.iter('node') if n.get('package') == PACKAGE and
+                       (n.get('text') == label or n.get('content-desc') == label)]
             if exclude_edit:
                 matches = [n for n in matches if n.get('class') != 'android.widget.EditText']
             matches = [n for n in matches if self.bounds(n)[2] > self.bounds(n)[0] and self.bounds(n)[3] > self.bounds(n)[1]]
@@ -94,7 +182,8 @@ class Emulator:
         else:
             raise RuntimeError(f'Missing visible UI target: {label}')
         chosen = sorted(matches, key=lambda n: self.bounds(n)[1], reverse=bottom)[0]
-        x1, y1, x2, y2 = self.bounds(chosen)
+        chosen = self.click_target(tree, chosen)
+        x1, y1, x2, y2 = self.visible_bounds(tree, chosen)
         self.shell('input', 'tap', str((x1 + x2) // 2), str((y1 + y2) // 2))
         time.sleep(.35)
         self.tree()
@@ -218,6 +307,7 @@ def main():
     for name in targets:
         print('Testing final signed APK:', name, flush=True)
         emulator.command('install', '-r', str(dist / name))
+        emulator.verify_installed_apk(dist / name)
         if emulator.installed()['firstInstallTime'] != before['firstInstallTime']:
             raise RuntimeError('Installation replaced user data')
         # Ask ART to compile the actual final DEX, not only parse its checksum.

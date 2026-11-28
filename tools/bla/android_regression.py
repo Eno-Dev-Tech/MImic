@@ -56,8 +56,9 @@ def main():
                       emulator=phone.device, cleanup='restored own saved snapshot; no uninstall/clear-data')
     finally:
         restored = phone.command('emu', 'avd', 'snapshot', 'load', snapshot)
+        (ROOT / 'build/bla/android-snapshot-restore.txt').write_text(restored, encoding='utf8')
         if 'KO:' in restored or 'OK' not in restored:
-            raise RuntimeError(f'Emulator restore failed; retain snapshot {snapshot} for recovery')
+            raise RuntimeError(f'Emulator restore failed; retain snapshot {snapshot} for recovery: {restored.strip()}')
         for _ in range(30):
             try:
                 if phone.installed() == before:
@@ -67,8 +68,11 @@ def main():
             time.sleep(1)
         else:
             raise RuntimeError('Restored emulator app does not match its baseline')
-        # Only remove the snapshot created by this invocation, after restoration.
-        phone.command('emu', 'avd', 'snapshot', 'delete', snapshot)
+        # Keep the restored RAM backing file while QEMU may still page from it.
+        # Delayed host crashes were observed after eager snapshot cleanup here.
+        # Cleanup is safe only after this emulator has stopped.
+        if result:
+            result['retainedBaselineSnapshot'] = snapshot
     if result:
         (ROOT / 'build/bla/android-regression.json').write_text(json.dumps(result, indent=2) + '\n', encoding='utf8')
         print(f"PASS: {result['tests']} direct Android regression tests; emulator baseline restored")

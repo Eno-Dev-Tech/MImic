@@ -15,6 +15,21 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class ThemeRemovalControlTest {
     @get:Rule val compose = createComposeRule()
+    @Test fun navigationPickerExposesSelectedStateForAccessibility() {
+        val selected = mutableStateOf(com.example.mimic.data.NavStyle.STANDARD)
+        compose.setContent {
+            MaterialTheme {
+                androidx.compose.foundation.layout.Column {
+                    com.example.mimic.ui.NavigationStylePicker(selected.value,
+                        com.example.mimic.ui.designsystem.ThemeRegistry.FELT_ORANGE_ID) { selected.value = it }
+                }
+            }
+        }
+        compose.onNodeWithText("Standard").assertIsSelected()
+        compose.onNodeWithText("Bubble Float").performScrollTo().performClick().assertIsSelected()
+        compose.runOnIdle { assertEquals(com.example.mimic.data.NavStyle.BUBBLE_FLOAT, selected.value) }
+    }
+
     @Test fun minusHasAccessibleTargetAndLastThemeIsDisabled() {
         val enabled = mutableStateOf(true)
         var clicks = 0

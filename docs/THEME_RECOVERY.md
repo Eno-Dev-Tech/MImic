@@ -8,6 +8,13 @@ intact. New theme IDs are visible by default. Removal atomically chooses a visib
 fallback for the active theme and rejects the last visible theme. A damaged imported
 all-hidden set still resolves a safe visible theme.
 
+Theme Studio's More menu offers **Restore All Themes**, **Reset Appearance Settings**
+and a shortcut to **Recovery & Repair** in App Updates. Appearance reset confirms
+its scope, pauses playback, cancels the sleep timer and atomically restores theme
+visibility, the default theme, glass quality and automatic navigation/player styles.
+It preserves other preferences and personal data. Offline theme restoration alone
+preserves the selected theme.
+
 Settings > App Updates > **Recovery & Repair** offers:
 
 - **Restore Removed Themes** removes only the hidden-ID preference. It works offline

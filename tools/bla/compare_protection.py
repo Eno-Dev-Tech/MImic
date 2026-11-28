@@ -45,6 +45,8 @@ def main():
         results['classes'][cls] = pair
     results['baselineBytes'] = args.baseline.stat().st_size
     results['protectedBytes'] = args.protected.stat().st_size
+    results['baselineSha256'] = hashlib.sha256(args.baseline.read_bytes()).hexdigest()
+    results['protectedSha256'] = hashlib.sha256(args.protected.read_bytes()).hexdigest()
     results['sizeDifferenceBytes'] = results['protectedBytes'] - results['baselineBytes']
     results['addedJadxResistanceDemonstrated'] = False
     results['limitations'] = ['Representative class comparison; not a full attacker benchmark.',

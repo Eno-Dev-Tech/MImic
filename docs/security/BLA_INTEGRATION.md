@@ -79,6 +79,31 @@ three cold launches and PSS measurement, and tests local/background/locked-scree
 playback and the media notification. The existing local track `Artwork Red` is
 the default fixture; set `MIMIC_SMOKE_TRACK` for another known local track.
 
+The runner also hashes the installed standalone base APK after each install and
+after the recovery reboot. Matching version metadata alone cannot authorize a
+different installed artifact. UI actions use the enabled accessibility control's
+hit area (including selected-tab reselect areas), rather than shifted icon/text
+coordinates. Non-actionable text and disabled controls are refused. Failed
+recovery runs retain incomplete checks, PNG/XML, logcat and window/activity state;
+these diagnostic records never count as successful release receipts.
+
+On this Windows host, a headless 37.2.12 emulator run exited during snapshot
+restoration. The existing windowed Pixel_10a with 4 GiB RAM and SwiftShader passed
+an independent owned snapshot save/restore probe. `-no-metrics` and
+`-crash-report-mode never` avoid startup reporting prompts without sending crash
+reports. Preserve the original snapshots and require a successful restore; an
+emulator/runtime failure still blocks release.
+
+Keep a restored snapshot's RAM backing files while its emulator is running.
+Eager cleanup was followed by delayed QEMU exits on this host; the runners now
+retain their named baseline snapshots (recorded in receipts/logs). Clean these
+test snapshots only after the emulator stops, preserving the owner's and
+previous-release baselines. Reboot checks use Android's power service and require
+a changed kernel boot ID plus completed startup; a hung ADB client or an already
+set `sys.boot_completed` property is insufficient. The driver explicitly dismisses
+the non-secure emulator keyguard, collapses the shade and requires MImic window
+focus before app actions, including its own popup windows.
+
 A same-version repeat can reuse upgrade evidence only for identical final APK
 hashes and the same original install record. If source/build changes invalidate
 that receipt, deliberately restore the saved previous-release baseline snapshot;

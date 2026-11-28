@@ -41,6 +41,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -179,7 +181,8 @@ fun SelectRow(title: String, options: List<String>, selected: Int, onSelect: (In
                             if (isSelected) MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.surfaceVariant,
                         )
-                        .clickable { onSelect(index) }
+                        .clickable(role = androidx.compose.ui.semantics.Role.RadioButton) { onSelect(index) }
+                        .semantics { this.selected = isSelected }
                         .padding(horizontal = 16.dp, vertical = 8.dp),
                 ) {
                     Text(

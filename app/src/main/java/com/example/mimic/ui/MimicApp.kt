@@ -599,6 +599,7 @@ fun MimicApp(viewModel: PlayerViewModel) {
                         onShare = shareTheme,
                         onBack = back,
                         onOpenDynamicPlayer = { navController.navigate("playerstudio") },
+                        onOpenRecovery = { navController.navigate("updates") },
                     )
                 }
             }

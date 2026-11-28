@@ -18,6 +18,39 @@ import java.util.UUID
 /** Each store has its own temporary file. Never changes the owner's production datastore. */
 @RunWith(AndroidJUnit4::class)
 class ThemeRecoveryTest {
+    @Test fun appearanceResetRestoresHiddenDefaultAndKeepsOtherPreferences() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val file = File(context.cacheDir, "appearance-test-${UUID.randomUUID()}.preferences_pb")
+        val owner = SupervisorJob()
+        val data = PreferenceDataStoreFactory.create(scope = CoroutineScope(Dispatchers.IO + owner), produceFile = { file })
+        val repository = SettingsRepository(context, data)
+        val retained = stringPreferencesKey("future_personal_account_key")
+        try {
+            data.edit {
+                it[retained] = "retained-fixture"
+                it[stringPreferencesKey("recent_searches")] = "Artwork Red"
+            }
+            repository.setAudio(com.example.mimic.data.AudioPrefs(speed = 1.25f))
+            repository.setHomeConfig(com.example.mimic.data.HomeConfig(
+                hidden = setOf(com.example.mimic.data.HomeSection.ALBUMS),
+                navStyle = com.example.mimic.data.NavStyle.BUBBLE_FLOAT))
+            val ids = listOf(ThemeRegistry.DEFAULT_ID, ThemeRegistry.FELT_ORANGE_ID)
+            assertTrue(repository.removeTheme(ThemeRegistry.DEFAULT_ID, ids))
+            repository.resetAppearancePreferences()
+            val settings = repository.settings.first()
+            assertEquals(ThemeRegistry.DEFAULT_ID, settings.themeId)
+            assertTrue(settings.removedThemeIds.isEmpty())
+            assertEquals(com.example.mimic.data.NavStyle.AUTO, settings.homeConfig.navStyle)
+            assertEquals(setOf(com.example.mimic.data.HomeSection.ALBUMS), settings.homeConfig.hidden)
+            assertEquals(1.25f, settings.audio.speed)
+            assertEquals(listOf("Artwork Red"), settings.recentSearches)
+            assertEquals("retained-fixture", data.data.first()[retained])
+        } finally {
+            owner.cancelAndJoin()
+            file.delete()
+        }
+    }
+
     @Test fun removalPersistsAcrossStoreRestartAndResetPreservesPersonalKeys() = runBlocking {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val file = File(context.cacheDir, "theme-test-${UUID.randomUUID()}.preferences_pb")

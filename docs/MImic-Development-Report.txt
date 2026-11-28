@@ -1301,3 +1301,35 @@ Final production build, final-APK recovery/playback/upgrade gate, security gate,
 comparison measurements, publication and live GitHub repair are still pending.
 Physical ARM hardware, live credentials/Navidrome/account flows and native ffmpeg on
 the Pixel_10a 16 KB emulator are not covered. Android Studio has not been opened.
+RESUMED DEVELOPMENT - 2026-11-27 (VALIDATION IN PROGRESS)
+Continued the clean MImic-bla security/bla-integration checkout at 785af7b.
+No Cline modifications, new project, branch merge or source reset. GitHub checked:
+canonical Eno-Dev-Tech/MImic remains PUBLIC; newest prerelease beta.1. Beta.3
+(400800136) is still unpublished and is the next candidate; no version reused.
+Implemented missing Theme Studio Restore All Themes, confirmed Reset Appearance
+Settings, Recovery & Repair shortcut and the existing shared navigation picker/
+interactive preview. Appearance reset now restores hidden/default themes and its
+explicit appearance keys atomically, pauses playback and cancels the sleep timer.
+Other preferences, personal stores and original signing configuration are retained.
+Added an isolated DataStore preservation regression. The final-APK recovery runner
+also checks the new Studio actions and six navigation styles, and captures fresh
+PNG/XML pairs in unique per-run folders so earlier failure evidence is retained.
+Baseline dry run passed both unit suites, 17 direct Android tests and release lint.
+After the changes, Kotlin/instrumentation compilation and both unit suites pass:
+Full 369 tests (3 skipped), Standard 245 (1 skipped), zero failures/errors.
+Final debug lint, protected build, emulator recovery and security validation remain
+in progress; these unit results alone do not establish release readiness.
+Saved owner emulator snapshot mimic_resume_owner_20261127, then deliberately loaded
+mimic_hidden_beta2_20261127 for real beta.2 -> beta.3 upgrade testing. Confirmed
+400800135 and firstInstallTime 2026-10-17 19:29:42. No uninstall/data clear/downgrade
+installation. Existing prior failure logs remain under build/bla.
+No push or publication is authorized before the owner's review and approval.
+BLA remains pinned 3.6.1 stealth trailer text; no additional method encryption or
+proven JADX resistance. No source weaving or protection bypass was introduced.
+
+2026-11-28 release checkpoint continuation (4.8.1-beta.3)
+Existing five signed staged APKs retained; no rebuild performed. Final standalone security gate PASS: secrets, 345 resolved dependencies / 23 reviewed advisories / zero blocking, both release manifests and all five original-key signers. Python evidence/refusal tests: 28 PASS.
+The clipped Classic-row test-driver fix passed immediate selection and cold-launch persistence. Its first probe stopped at the app's Compose popup title; the targeted retry passed after recognizing that title with MImic focused. Owned probe snapshot restored and retained.
+Final exact-hash emulator gate is running from deliberately restored saved beta.2 hidden-theme baseline. x86_64, Standard and Full installations, ART compilation, theme preservation and six destinations passed; Standard and Full local/background/lock-screen playback passed. Complete recovery receipt remains pending. No commit, push, merge or publication yet. Owner explicitly authorized those actions after mandatory gates pass.
+
+2026-11-28 final prepublication gates: PASS. No APK rebuild in this continuation. Five hashes match staged protection report. Exact-hash emulator receipt passed all recovery flags, all six styles, 36 style/destination selections, Classic persistence, Standard/Full playback, ART, same-version reinstall, real reboot and beta.2-to-beta.3 upgrade (400800135 to 400800136), preserving firstInstallTime 2026-10-17 19:29:42. Thirty themes removed individually; final visible theme protected. Offline restore, both reset flows, visible downloads/favorites and Studio recovery shortcut passed. Security gate PASS. Original owner snapshot restored; Plasma Glow and install record preserved; installed final universal hash 1f74e5ab21689aa17a8cadc3646cb3b3c5ea2d9a5d5718cfe4a9cc8e6c7f88d5. Evidence: dist/emulator-verification.json; build/bla/resume-final-exact-emulator.log; build/bla/resume-owner-restored.json. Publication and live official OTA/repair follow this committed checkpoint. No additional BLA/JADX resistance demonstrated.

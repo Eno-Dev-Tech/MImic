@@ -1,5 +1,7 @@
 ## 4.8.1-beta.3
 
+- Theme Studio now offers Restore All Themes, an explicit appearance reset and a shortcut to Recovery & Repair. Appearance reset atomically restores the default theme and visibility while retaining other preferences and personal data.
+- Navigation choices expose their selected state to accessibility, and system-bar icons follow the selected theme's light/dark appearance.
 - Hide individual themes with a confirmed minus control; retain choices across restarts and updates, switch safely when hiding the active theme and protect the last available theme.
 - Added Recovery & Repair to App Updates: restore removed themes offline, repair/reinstall an official compatible protected release and reset configurable settings while retaining personal data.
 - Explicit repair can reinstall the same version. All APKs require the original signature, exact release identity, checksums and protection evidence; downgrades remain blocked.

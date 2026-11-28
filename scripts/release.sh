@@ -3,6 +3,7 @@
 #
 #   scripts/release.sh            dry run: tests + signed build + verification into dist/ (publishes nothing)
 #   scripts/release.sh --publish  the same, then creates the GitHub Release vX.Y.Z and uploads the assets
+#   scripts/release.sh --publish --staged  publish existing APKs after exact-receipt, hash and security revalidation
 #
 # The version comes ONLY from versionName in app/build.gradle.kts. A version with a suffix
 # (4.1.0-beta.1) becomes a GitHub pre-release = the in-app Beta channel; stable users never see it.
@@ -15,9 +16,15 @@ cd "$(dirname "$0")/.."
 
 PUBLISH=false
 [[ "${1:-}" == "--publish" ]] && PUBLISH=true
+STAGED=false
+[[ "${2:-}" == "--staged" ]] && STAGED=true
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 step() { echo; echo "==> $*"; }
+case "$*" in
+  ""|"--publish"|"--publish --staged") ;;
+  *) die "usage: scripts/release.sh [--publish [--staged]]" ;;
+esac
 
 export JAVA_HOME="${JAVA_HOME:-/c/Program Files/Android/Android Studio/jbr}"
 SDK="${ANDROID_HOME:-$LOCALAPPDATA/Android/Sdk}"
@@ -45,6 +52,11 @@ if $PUBLISH; then
   git rev-parse "$TAG" >/dev/null 2>&1 && die "tag $TAG already exists — bump versionName"
 fi
 
+if $STAGED; then
+  $PUBLISH || die "--staged requires --publish"
+  step "Revalidate already tested signed artifacts (no rebuild)"
+  (cd dist && sha256sum -c SHA256SUMS.txt)
+else
 step "Unit tests (both editions)"
 "$PY" -m unittest discover -s tools/bla -p 'test_*.py'
 ./gradlew "${GRADLE_ARGS[@]}" :app:testFullDebugUnitTest :app:testStandardDebugUnitTest
@@ -53,7 +65,7 @@ step "Direct Android regressions (snapshot-preserved emulator; no connected-test
 "$PY" tools/bla/android_regression.py
 
 step "Lint"
-./gradlew "${GRADLE_ARGS[@]}" :app:lintFullRelease
+./gradlew "${GRADLE_ARGS[@]}" :app:lintFullDebug :app:lintFullRelease
 
 step "R8 optimized unsigned build + mandatory BLA DEX verification"
 ./gradlew "${GRADLE_ARGS[@]}" :app:assembleFullRelease :app:assembleStandardRelease
@@ -85,6 +97,7 @@ cat dist/SHA256SUMS.txt
 
 step "Final signed APK emulator, playback and upgrade gate (never uninstalls)"
 "$PY" tools/bla/verify_emulator.py --dist dist
+fi
 "$PY" -I tools/bla/apk_pipeline.py verify-release dist --require-emulator
 
 # Release notes = this version's CHANGELOG section (plain text; the app shows it as-is).

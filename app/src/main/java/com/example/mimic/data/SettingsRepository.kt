@@ -230,6 +230,15 @@ class SettingsRepository(
 
     suspend fun restoreRemovedThemes() { store.edit { it.remove(Keys.REMOVED_THEMES) } }
 
+    /** Restore appearance together, so the default theme cannot remain hidden. */
+    suspend fun resetAppearancePreferences() {
+        store.edit { prefs ->
+            setOf(Keys.THEME_ID, Keys.REMOVED_THEMES, Keys.LAST_FLAT_THEME,
+                Keys.GLASS_QUALITY, Keys.NAV_STYLE, Keys.PLAYER_BG, Keys.CONTROL_STYLE)
+                .forEach { prefs.remove(it) }
+        }
+    }
+
     /** Appearance/playback/display/scan preferences only; no account, DB or music deletion. */
     suspend fun resetConfigurablePreferences() {
         store.edit { prefs -> Keys.RESETTABLE.forEach { prefs.remove(it) } }

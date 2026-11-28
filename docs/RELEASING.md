@@ -66,6 +66,7 @@ see (or won't accept) it.
 # 1. bump versionName, add the CHANGELOG section, commit (and push to main: CI runs the tests)
 scripts/release.sh             # dry run: tests, lint, signed build, verification → dist/
 scripts/release.sh --publish   # same, then tag vX.Y.Z, push, create the GitHub Release, verify downloads
+scripts/release.sh --publish --staged # reuse completed build/tests; require matching final source/APK emulator receipt, recheck hashes/artifacts and security
 ```
 
 The script refuses to publish when: tests or lint fail, `keystore.properties` is missing, any APK

@@ -126,6 +126,7 @@ fun ThemeStudioScreen(
     onShare: (ThemeDefinition) -> Unit,
     onBack: () -> Unit,
     onOpenDynamicPlayer: () -> Unit = {},
+    onOpenRecovery: () -> Unit = {},
 ) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val themes by vm.allThemes.collectAsStateWithLifecycle()
@@ -153,13 +154,25 @@ fun ThemeStudioScreen(
             Box {
                 IconButton(onClick = { overflow = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More") }
                 DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
-                    DropdownMenuItem(text = { Text("Restore defaults") }, onClick = { overflow = false; confirmRestore = true })
+                    DropdownMenuItem(text = { Text("Restore All Themes") }, enabled = !recovery.working,
+                        onClick = { overflow = false; vm.restoreRemovedThemes() })
+                    DropdownMenuItem(text = { Text("Reset Appearance Settings") }, enabled = !recovery.working,
+                        onClick = { overflow = false; confirmRestore = true })
+                    DropdownMenuItem(text = { Text("Recovery & Repair") },
+                        onClick = { overflow = false; onOpenRecovery() })
                 }
             }
         })
         LazyColumn(Modifier.fillMaxSize()) {
             themeSection("3D themes", hardwareThemes, settings.themeId, vm, canRemove, onEdit, onExportFile, onShare) { confirmDelete = it }
             item(key = "quality") { GlassQualityPicker(settings.glassQuality, vm::setGlassQuality) }
+            item(key = "navigation") {
+                Column {
+                    NavigationStylePicker(settings.homeConfig.navStyle, settings.themeId) {
+                        vm.setHomeConfig(settings.homeConfig.copy(navStyle = it))
+                    }
+                }
+            }
             item(key = "dynamic") {
                 val inUse = settings.playerLayout.layout == com.example.mimic.data.PlayerLayout.DYNAMIC
                 Row(
@@ -240,8 +253,8 @@ fun ThemeStudioScreen(
     if (confirmRestore) {
         AlertDialog(
             onDismissRequest = { confirmRestore = false },
-            title = { Text("Restore defaults?") },
-            text = { Text("Switches back to the default theme, resets glass quality and sets navigation and player styles to follow the theme. Your custom themes are kept.") },
+            title = { Text("Reset appearance settings?") },
+            text = { Text("Restores all hidden themes, switches back to the default theme, resets glass quality and sets navigation and player styles to follow the theme. Playback will pause and the sleep timer will be cancelled. Your custom themes, music, accounts and other settings are kept.") },
             confirmButton = { TextButton(onClick = { vm.restoreThemeDefaults(); confirmRestore = false }) { Text("Restore") } },
             dismissButton = { TextButton(onClick = { confirmRestore = false }) { Text("Cancel") } },
         )

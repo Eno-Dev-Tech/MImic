@@ -311,8 +311,19 @@ def verify_release(dist: Path, emulator: bool = False):
             recovery.get(field) is True for field in ('activeThemeFallback', 'removalPersistsAfterRestart',
                 'removalPersistsAfterReboot', 'sameVersionReinstall', 'lastThemeProtected',
                 'offlineThemeRestoration', 'restorePreservesSelection', 'settingsResetConfirmed',
-                'originalInstallRecordPreserved', 'removalPersistsAfterUpgrade', 'visibleDownloadsAndFavoritesPreserved')):
+                'originalInstallRecordPreserved', 'removalPersistsAfterUpgrade', 'visibleDownloadsAndFavoritesPreserved',
+                'studioRestorationPreservesSelection', 'studioAppearanceReset', 'studioRecoveryShortcut')):
             raise RuntimeError('Missing final APK theme recovery/repair regression evidence')
+        navigation = recovery.get('navigationStyles', {})
+        if navigation.get('styles') != ['Sliding Pill', 'Liquid Bulge', 'Floating Notch', 'Icon Fill', 'Expanding Label', 'Bubble Float'] or \
+                navigation.get('destinationsPerStyle') != 6 or not all(navigation.get(field) is True for field in (
+                    'previewDoesNotNavigate', 'themeSelectionIndependent', 'feltClassicPersists', 'stylesPersistAfterRestart')):
+            raise RuntimeError('Missing final APK navigation preview/style regression evidence')
+        boot = recovery.get('rebootEvidence', {})
+        boot_pattern = r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}'
+        if boot.get('bootCompleted') is not True or not all(re.fullmatch(boot_pattern, boot.get(key, ''))
+                for key in ('previousBootId', 'bootId')) or boot.get('previousBootId') == boot.get('bootId'):
+            raise RuntimeError('Missing independently observed kernel reboot identity evidence')
     print('BLA release verification passed' + (' including emulator upgrade evidence' if emulator else ''))
 
 

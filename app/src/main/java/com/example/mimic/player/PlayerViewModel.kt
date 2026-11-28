@@ -1538,19 +1538,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
      * "Restore defaults" in Theme Studio: back to the default preset and device-appropriate glass
      * quality, nav/player styles back to follow-the-theme. Custom themes are NOT touched.
      */
-    fun restoreThemeDefaults() {
-        viewModelScope.launch {
-            val s = settings.value
-            settingsRepo.setThemeId(com.example.mimic.ui.designsystem.ThemeRegistry.DEFAULT_ID)
-            settingsRepo.setGlassQuality(com.example.mimic.data.GlassQuality.safeDefault())
-            settingsRepo.setHomeConfig(s.homeConfig.copy(navStyle = com.example.mimic.data.NavStyle.AUTO))
-            settingsRepo.setPlayerLayout(
-                s.playerLayout.copy(
-                    background = com.example.mimic.data.PlayerBackground.AUTO,
-                    controlStyle = com.example.mimic.data.ControlStyle.AUTO,
-                ),
-            )
-        }
+    fun restoreThemeDefaults() = recover("Default appearance restored. Your personal data has been kept.") {
+        pause()
+        cancelSleepTimer()
+        settingsRepo.resetAppearancePreferences()
     }
 
     fun saveCustomTheme(theme: com.example.mimic.ui.designsystem.ThemeDefinition, apply: Boolean) {

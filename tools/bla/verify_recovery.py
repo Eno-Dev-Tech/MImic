@@ -1,18 +1,22 @@
 """ADB-only recovery UI checks. Preserve the owner's emulator with an owned snapshot."""
 import json
+import re
 import time
 import uuid
 from pathlib import Path
+import xml.etree.ElementTree as ET
 
 from apk_pipeline import ROOT, PACKAGE, sha
 from verify_emulator import Emulator
 
+CAPTURE_DIR = ROOT / 'build/bla/screenshots' / (time.strftime('%Y%m%d-%H%M%S') + '-' + uuid.uuid4().hex[:8])
 
 def labels(phone):
     return {n.get('text') or n.get('content-desc') for n in phone.tree().iter('node')}
 
 
 def scroll(phone, upward=False):
+    phone.require_app_focus()
     phone.shell('input', 'swipe', '400', '450' if upward else '1500', '400', '1500' if upward else '450', '350')
 
 
@@ -24,7 +28,7 @@ def find(phone, label, attempts=25):
     raise RuntimeError('Missing recovery UI: ' + label)
 
 
-def gallery(phone):
+def settings_root(phone):
     phone.launch()
     phone.tap('Settings')
     # Android can restore Settings' scroll position after a reboot/cold launch.
@@ -34,12 +38,15 @@ def gallery(phone):
         scroll(phone, upward=True)
     else:
         raise RuntimeError('Missing Theme Studio after returning to Settings')
+
+
+def gallery(phone):
+    settings_root(phone)
     phone.tap('Theme Studio')
 
 
 def updates(phone):
-    phone.launch()
-    phone.tap('Settings')
+    settings_root(phone)
     find(phone, 'App Updates')
     phone.tap('App Updates')
     find(phone, 'Recovery & Repair')
@@ -47,11 +54,13 @@ def updates(phone):
 
 
 def screenshot(phone, name):
-    folder = ROOT / 'build/bla/screenshots'
+    folder = CAPTURE_DIR
     folder.mkdir(parents=True, exist_ok=True)
     remote = '/sdcard/mimic-recovery-screen.png'
     phone.shell('screencap', '-p', remote)
     phone.command('pull', remote, str(folder / name))
+    # Retain a fresh accessibility capture beside each successful screenshot too.
+    ET.ElementTree(phone.tree()).write(folder / Path(name).with_suffix('.xml'), encoding='utf-8', xml_declaration=True)
 
 
 def remove(phone, name):
@@ -61,6 +70,64 @@ def remove(phone, name):
     if 'Remove theme?' not in confirmation or 'You can restore this theme later from Settings > Updates.' not in confirmation:
         raise RuntimeError('Theme removal confirmation contract changed')
     phone.tap('Remove')
+
+
+def motion_chip(phone, style):
+    find(phone, 'Standard')
+    anchor = next(n for n in phone.tree().iter('node') if n.get('text') == 'Standard')
+    x1, y1, x2, y2 = phone.bounds(anchor)
+    y = (y1 + y2) // 2
+    width = phone.bounds(phone.tree().find('node'))[2]
+    for _ in range(12):
+        tree = phone.tree()
+        node = next((n for n in tree.iter('node') if n.get('text') == style), None)
+        if node is not None:
+            # Android exposes radio selection as checked, and tab selection as selected.
+            return any((n.get('selected') == 'true' or
+                        (n.get('checkable') == 'true' and n.get('checked') == 'true')) and
+                       node in list(n.iter('node')) for n in tree.iter('node'))
+        phone.shell('input', 'swipe', str(int(width * .85)), str(y), str(int(width * .15)), str(y), '300')
+    raise RuntimeError('Missing navigation style chip: ' + style)
+
+
+def motion_checks(phone):
+    """Exercise the final release's shared picker, preview and actual destinations."""
+    styles = ['Sliding Pill', 'Liquid Bulge', 'Floating Notch', 'Icon Fill', 'Expanding Label', 'Bubble Float']
+    frames = {}
+    for style in styles:
+        gallery(phone)
+        motion_chip(phone, style)
+        phone.tap(style, bottom=False)
+        gallery(phone)  # force-stop/relaunch before reading the saved selection
+        if not motion_chip(phone, style):
+            raise RuntimeError('Navigation style did not survive cold launch: ' + style)
+        find(phone, 'Navigation preview')
+        phone.tap('Search', bottom=False)
+        if 'Theme Studio' not in labels(phone):
+            raise RuntimeError('Preview unexpectedly navigated away from Theme Studio')
+        screenshot(phone, 'navigation-' + style.lower().replace(' ', '-') + '.png')
+        phone.shell('dumpsys', 'gfxinfo', PACKAGE, 'reset')
+        phone.navigation()
+        frame_report = phone.shell('dumpsys', 'gfxinfo', PACKAGE, 'framestats')
+        (CAPTURE_DIR / ('navigation-' + style.lower().replace(' ', '-') + '-frames.txt')).write_text(frame_report, encoding='utf8')
+        counts = re.search(r'Total frames rendered:\s*(\d+).*?Janky frames:\s*(\d+)\s*\(([^)]+)\)', frame_report, re.S)
+        frames[style] = dict(total=int(counts[1]), janky=int(counts[2]), jankyPercent=counts[3]) if counts else dict(measurementAvailable=False)
+        if phone.current_theme() != 'Current: Felt Orange':
+            raise RuntimeError('Navigation selection changed the active theme')
+        print('PASS: final APK preview and six destinations:', style, flush=True)
+    gallery(phone)
+    find(phone, 'Felt Classic')
+    phone.tap('Felt Classic')
+    screenshot(phone, 'felt-classic.png')
+    phone.launch()
+    if phone.current_theme() != 'Current: Felt Classic':
+        raise RuntimeError('Felt Classic did not persist after cold launch')
+    gallery(phone)
+    find(phone, 'Felt Orange')
+    phone.tap('Felt Orange')
+    return dict(styles=styles, destinationsPerStyle=6, previewDoesNotNavigate=True,
+                themeSelectionIndependent=True, feltClassicPersists=True, stylesPersistAfterRestart=True,
+                emulatorFrames=frames)
 
 
 def download_signature(phone):
@@ -143,6 +210,7 @@ def verify(phone, apk: Path):
         find(phone, 'Felt Orange')
         phone.tap('Felt Orange')
         screenshot(phone, 'theme-gallery.png')
+        result['navigationStyles'] = motion_checks(phone)
         remove(phone, 'Felt Orange')
         phone.launch()
         if phone.current_theme() == 'Current: Felt Orange':
@@ -150,17 +218,13 @@ def verify(phone, apk: Path):
         result['activeThemeFallback'] = True
         # Reinstall the exact signed APK without uninstalling or changing its version.
         phone.command('install', '-r', str(apk))
+        phone.verify_installed_apk(apk)
         if phone.installed() != before:
             raise RuntimeError('Same-version reinstall changed the install record')
-        phone.command('reboot')
-        phone.command('wait-for-device')
-        for _ in range(60):
-            if phone.shell('getprop', 'sys.boot_completed').strip() == '1':
-                break
-            time.sleep(1)
-        else:
-            raise RuntimeError('Emulator did not finish rebooting')
-        phone.shell('input', 'keyevent', '82')
+        result['rebootEvidence'] = phone.reboot()
+        phone.shell('wm', 'dismiss-keyguard')
+        phone.shell('cmd', 'statusbar', 'collapse')
+        phone.verify_installed_apk(apk)
         gallery(phone)
         if 'Remove Felt Orange' in all_removal_controls(phone):
             raise RuntimeError('Removed theme reappeared after restart/reinstall/reboot')
@@ -233,22 +297,59 @@ def verify(phone, apk: Path):
         result['visibleDownloadsAndFavoritesPreserved'] = True
         # The isolated Android test verifies retained personal keys; this checks final UI behavior.
         result['settingsResetConfirmed'] = True
+        gallery(phone)
+        find(phone, 'Felt Orange')
+        phone.tap('Felt Orange')
+        phone.tap('More')
+        screenshot(phone, 'theme-studio-recovery-menu.png')
+        phone.tap('Restore All Themes')
+        phone.launch()
+        if phone.current_theme() != 'Current: Felt Orange':
+            raise RuntimeError('Theme Studio restoration changed the selection')
+        gallery(phone)
+        phone.tap('More')
+        phone.tap('Reset Appearance Settings')
+        if 'Reset appearance settings?' not in labels(phone):
+            raise RuntimeError('Missing appearance-reset confirmation')
+        screenshot(phone, 'appearance-reset-confirmation.png')
+        phone.tap('Restore')
+        phone.launch()
+        if phone.current_theme() != 'Current: Classic Music Dark':
+            raise RuntimeError('Theme Studio appearance reset did not restore the default')
+        gallery(phone)
+        phone.tap('More')
+        phone.tap('Recovery & Repair')
+        find(phone, 'Recovery & Repair')
+        result.update(studioRestorationPreservesSelection=True, studioAppearanceReset=True,
+                      studioRecoveryShortcut=True)
         if phone.installed() != before:
             raise RuntimeError('Recovery changed the original install identity')
         result['originalInstallRecordPreserved'] = True
         return dict(apkSha256=sha(apk.read_bytes()), **result)
     except BaseException:
+        CAPTURE_DIR.mkdir(parents=True, exist_ok=True)
+        (CAPTURE_DIR / 'partial-checks.json').write_text(json.dumps(dict(
+            completed=False, apkSha256=sha(apk.read_bytes()), checks=result), indent=2), encoding='utf8')
+        for name, command in [('failure-logcat.txt', ('logcat', '-d', '-t', '2000')),
+                              ('failure-activity.txt', ('shell', 'dumpsys', 'activity', 'activities')),
+                              ('failure-window.txt', ('shell', 'dumpsys', 'window'))]:
+            try:
+                (CAPTURE_DIR / name).write_text(phone.command(*command), encoding='utf8')
+            except Exception:
+                pass  # Preserve the original failure even if ADB diagnostics fail.
         try:
             screenshot(phone, 'recovery-failure.png')
-            folder = ROOT / 'build/bla/screenshots'
+            folder = CAPTURE_DIR
             phone.command('pull', '/sdcard/mimic-bla-validation.xml', str(folder / 'recovery-failure.xml'))
         except Exception:
             pass  # Diagnostic capture is best effort; the original failure is re-raised.
         raise
     finally:
         restored = phone.command('emu', 'avd', 'snapshot', 'load', snapshot)
+        (CAPTURE_DIR / 'snapshot-restore.txt').parent.mkdir(parents=True, exist_ok=True)
+        (CAPTURE_DIR / 'snapshot-restore.txt').write_text(restored, encoding='utf8')
         if 'KO:' in restored or 'OK' not in restored:
-            raise RuntimeError('Restore failed; retain recovery snapshot ' + snapshot)
+            raise RuntimeError('Restore failed; retain recovery snapshot ' + snapshot + ': ' + restored.strip())
         for _ in range(30):
             try:
                 if phone.installed() == before:
@@ -258,7 +359,9 @@ def verify(phone, apk: Path):
             time.sleep(1)
         else:
             raise RuntimeError('Recovery snapshot did not restore the original install record')
-        phone.command('emu', 'avd', 'snapshot', 'delete', snapshot)
+        # Retain the restored RAM backing file for the lifetime of the emulator.
+        # Eager cleanup was followed by delayed host exits on this Windows host.
+        print('Retained restored recovery baseline snapshot:', snapshot, flush=True)
 
 
 if __name__ == '__main__':

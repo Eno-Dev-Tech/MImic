@@ -11,8 +11,15 @@ enum class ArtworkSize { SMALL, MEDIUM, LARGE }
 /** What is painted behind the Now Playing content. Always on top of an opaque base (2.8.4 fix). */
 enum class PlayerBackground { AUTO, SOLID, GRADIENT, BLURRED_ARTWORK }
 
-/** Transport control styling. AUTO = glass on glass themes, filled otherwise. */
-enum class ControlStyle { AUTO, FILLED, GLASS, MINIMAL }
+/**
+ * Transport control styling. AUTO = glass on glass themes, 3D on 3D themes, filled otherwise.
+ * Append-only (persisted by name, shown by ordinal). TACTILE (4.8) = the 3D buttons, knob and
+ * groove slider of the active 3D style.
+ */
+enum class ControlStyle { AUTO, FILLED, GLASS, MINIMAL, TACTILE }
+
+/** Now Playing volume control (4.8). AUTO = a dial with 3D controls, none otherwise. */
+enum class VolumeControl { AUTO, OFF, SLIDER, DIAL }
 
 data class PlayerLayoutConfig(
     val layout: PlayerLayout = PlayerLayout.CLASSIC,
@@ -22,20 +29,39 @@ data class PlayerLayoutConfig(
     val showSecondaryActions: Boolean = true,
     val background: PlayerBackground = PlayerBackground.AUTO,
     val controlStyle: ControlStyle = ControlStyle.AUTO,
+    val volumeControl: VolumeControl = VolumeControl.AUTO,
 )
 
-/** AUTO resolution: glass themes get the blurred-artwork backdrop, Immersive the accent gradient. */
-fun PlayerLayoutConfig.resolvedBackground(glassTheme: Boolean): PlayerBackground = when {
+/**
+ * AUTO resolution: 3D themes get a solid page, glass themes the blurred-artwork backdrop, Immersive
+ * the accent gradient. 3D is checked first (4.8.0-beta.2): a 3D theme that also has "Liquid Glass
+ * surfaces" switched on in Theme Studio is still drawn as 3D hardware, never as glass.
+ */
+fun PlayerLayoutConfig.resolvedBackground(glassTheme: Boolean, depthTheme: Boolean = false): PlayerBackground = when {
     background != PlayerBackground.AUTO -> background
+    // 3D surfaces are lit against the page color; a busy backdrop would break the illusion.
+    depthTheme -> PlayerBackground.SOLID
     glassTheme -> PlayerBackground.BLURRED_ARTWORK
     layout == PlayerLayout.IMMERSIVE -> PlayerBackground.GRADIENT
     else -> PlayerBackground.SOLID
 }
 
-fun PlayerLayoutConfig.resolvedControls(glassTheme: Boolean): ControlStyle = when {
+fun PlayerLayoutConfig.resolvedControls(glassTheme: Boolean, depthTheme: Boolean = false): ControlStyle = when {
     controlStyle != ControlStyle.AUTO -> controlStyle
+    depthTheme -> ControlStyle.TACTILE
     glassTheme -> ControlStyle.GLASS
     else -> ControlStyle.FILLED
+}
+
+/**
+ * Which volume control Now Playing shows: null = none. AUTO gives a dial only with 3D controls,
+ * so existing themes keep their player exactly as it was.
+ */
+fun PlayerLayoutConfig.resolvedVolume(controls: ControlStyle): VolumeControl? = when (volumeControl) {
+    VolumeControl.OFF -> null
+    VolumeControl.SLIDER -> VolumeControl.SLIDER
+    VolumeControl.DIAL -> VolumeControl.DIAL
+    VolumeControl.AUTO -> if (controls == ControlStyle.TACTILE) VolumeControl.DIAL else null
 }
 
 /** Fraction of available width the artwork should occupy. Pure (unit-testable). */

@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.flowOf
  */
 object OnlineMusic {
     const val AVAILABLE = false
+    const val discoverySession = 0L
+    suspend fun discovery(feed: com.example.mimic.data.online.DiscoveryFeed, seeds: List<String>, country: com.example.mimic.data.online.DiscoveryCountry = com.example.mimic.data.online.DiscoveryCountry.WORLDWIDE): Result<com.example.mimic.data.online.DiscoveryContent> = Result.failure(unavailable)
     private val unavailable = UnsupportedOperationException("Online music is part of MImic's full edition")
 
     fun init(context: Context) = Unit

@@ -6,6 +6,9 @@ package com.example.mimic.data
  */
 enum class HomeSection(val label: String) {
     QUICK_ACCESS("Quick Access"), // MImic 3.2: compact grid of Liked Songs, Downloads, recent albums
+    NEW_RELEASES("New releases"),
+    RECOMMENDED_SONGS("Recommended songs"),
+    SUGGESTED_ALBUMS("Suggested albums"),
     RECENTLY_PLAYED("Continue Listening"),
     DOWNLOADS("Downloaded Music"),
     RECENT_SONGS("Recently Played"), // MImic 3.2: the play history (Continue Listening = albums)
@@ -24,7 +27,20 @@ enum class HomeSection(val label: String) {
  * glass pill, every other theme the standard bar, so a user who never touched this setting sees
  * exactly the pre-2.9 bar until they pick a glass theme.
  */
-enum class NavStyle { STANDARD, FLOATING, COMPACT, GLASS, AUTO, AURA }
+enum class NavStyle(val label: String) {
+    STANDARD("Standard"),
+    FLOATING("Floating"),
+    COMPACT("Compact"),
+    GLASS("Liquid Glass"),
+    AUTO("Auto (theme)"),
+    AURA("Floating Aura"),
+    SLIDING_PILL("Sliding Pill"),
+    LIQUID_BULGE("Liquid Bulge"),
+    FLOATING_NOTCH("Floating Notch"),
+    ICON_FILL("Icon Fill"),
+    EXPANDING_LABEL("Expanding Label"),
+    BUBBLE_FLOAT("Bubble Float"),
+}
 
 /**
  * Resolves the user's nav style against the active theme. AUTO follows the theme's pill-nav wish;
@@ -57,12 +73,12 @@ data class HomeConfig(
         val order = sectionOrder.distinct().toMutableList()
         val defaults = HomeSection.entries
         val leading = defaults.first().takeIf { it !in order }
+        if (leading != null) order.add(0, leading)
         for ((i, section) in defaults.withIndex()) {
             if (section in order || section == leading) continue
             val anchor = defaults.subList(0, i).lastOrNull { it in order }
             if (anchor == null) order.add(section) else order.add(order.indexOf(anchor) + 1, section)
         }
-        if (leading != null) order.add(0, leading)
         return order
     }
 

@@ -1,5 +1,6 @@
 *.iml
 .gradle
+/.kotlin/
 /local.properties
 /.idea/caches
 /.idea/libraries
@@ -34,6 +35,8 @@ cloud.properties
 /dist/
 *.apk
 *.aab
+/tools/bla/node_modules/
+/tools/bla/__pycache__/
 
 # Firebase project values for the MImic account (4.4) — per-user, see docs/ACCOUNT_SETUP.md
 firebase.properties

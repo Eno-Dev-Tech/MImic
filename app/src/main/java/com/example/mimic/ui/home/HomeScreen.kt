@@ -1,5 +1,6 @@
 package com.example.mimic.ui.home
 
+import com.example.mimic.ui.designsystem.depthPanel
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,6 +40,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -78,8 +80,8 @@ import java.util.Calendar
  * Home — the main music dashboard (MImic 3.0, reworked in 3.2). Every section is real data from
  * the unified library (device + server + cloud + downloads) and Room; nothing is fabricated.
  * Sections follow the user's Home customization (order + hidden) and the shared source filter,
- * and each one has an honest empty state, so Home works fully offline. Everything here comes from
- * ViewModel StateFlows that are already warm, so returning to Home makes no network calls.
+ * and each one has an honest empty state, so the library works fully offline. The full edition's
+ * optional discovery rows fetch online metadata with per-session caching, retry and source labels.
  */
 @Composable
 fun HomeScreen(vm: PlayerViewModel, contentPadding: PaddingValues, nav: AppNav) {
@@ -87,6 +89,7 @@ fun HomeScreen(vm: PlayerViewModel, contentPadding: PaddingValues, nav: AppNav) 
     val all by vm.songs.collectAsStateWithLifecycle()
     val filter by vm.sourceFilter.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
+    val settingsReady by vm.settingsReady.collectAsStateWithLifecycle()
     val recentlyPlayed by vm.recentlyPlayed.collectAsStateWithLifecycle()
     val recentAlbums by vm.recentAlbums.collectAsStateWithLifecycle()
     val recentlyAdded by vm.recentlyAdded.collectAsStateWithLifecycle()
@@ -98,6 +101,12 @@ fun HomeScreen(vm: PlayerViewModel, contentPadding: PaddingValues, nav: AppNav) 
     val playlists by vm.playlists.collectAsStateWithLifecycle()
     val mixes = rememberSmartMixes(vm)
     val player by vm.nowPlaying.collectAsStateWithLifecycle()
+    val discovery by vm.homeDiscovery.collectAsStateWithLifecycle()
+    val discoveryVisible = com.example.mimic.online.OnlineMusic.AVAILABLE && (filter == SourceFilter.ALL || filter == SourceFilter.ONLINE)
+    val discoveryFeeds = if (discoveryVisible) settings.homeConfig.visibleOrdered().mapNotNull { it.discoveryFeed() }.toSet() else emptySet()
+    LaunchedEffect(settingsReady, discoveryFeeds, settings.discoveryCountry, recentlyPlayed.firstOrNull()?.remoteId) {
+        if (settingsReady) vm.loadHomeDiscovery(discoveryFeeds)
+    }
 
     val listState = rememberLazyListState()
     ScrollToTopOnReselect(TopLevel.HOME, listState)
@@ -110,9 +119,10 @@ fun HomeScreen(vm: PlayerViewModel, contentPadding: PaddingValues, nav: AppNav) 
             .take(20)
     }
 
-    com.example.mimic.ui.library.RefreshableLibrary(vm, contentPadding) {
+    com.example.mimic.ui.library.RefreshableLibrary(vm, contentPadding, onRefreshExtra = { vm.loadHomeDiscovery(discoveryFeeds, force = true) }) {
     LazyColumn(state = listState, contentPadding = contentPadding, modifier = Modifier.fillMaxSize()) {
         item(key = "greeting") { Greeting(all) }
+        if (discoveryVisible) item(key = "discovery_country") { DiscoveryCountryPicker(settings.discoveryCountry, vm::setDiscoveryCountry) }
         item(key = "filters") { SourceFilterRow(vm, Modifier.padding(top = 4.dp)) }
         if (loading && all.isEmpty()) {
             item(key = "loading") {
@@ -121,6 +131,12 @@ fun HomeScreen(vm: PlayerViewModel, contentPadding: PaddingValues, nav: AppNav) 
         }
         settings.homeConfig.visibleOrdered().forEach { section ->
             when (section) {
+                HomeSection.RECOMMENDED_SONGS, HomeSection.SUGGESTED_ALBUMS, HomeSection.NEW_RELEASES -> {
+                    if (discoveryVisible) {
+                        val feed = section.discoveryFeed()!!
+                        discoveryShelf(section.label, feed, discovery.getValue(feed), vm, nav)
+                    }
+                }
                 HomeSection.QUICK_ACCESS -> {
                     val favs = favorites.f()
                     val dls = downloads.f()
@@ -329,8 +345,7 @@ private fun QuickTileView(tile: QuickTile, modifier: Modifier) {
     Row(
         modifier
             .height(56.dp)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (env.style.glass) 0.6f else 1f))
+            .depthPanel(shape, MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (env.style.glass) 0.6f else 1f), elevation = 4.dp)
             .clickable(onClick = tile.onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -376,8 +391,7 @@ private fun ResumeCard(vm: PlayerViewModel, song: Song, isPlaying: Boolean, onMe
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
-            .clip(shape)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (env.style.glass) 0.55f else 1f))
+            .depthPanel(shape, MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (env.style.glass) 0.55f else 1f), elevation = 4.dp)
             .combinedClickable(onClick = vm::togglePlayPause, onLongClick = onMenu),
     ) {
         Row(Modifier.padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -408,7 +422,7 @@ private fun ResumeCard(vm: PlayerViewModel, song: Song, isPlaying: Boolean, onMe
     }
 }
 
-private fun LazyListScope.songCarousel(
+internal fun LazyListScope.songCarousel(
     key: String,
     songs: List<Song>,
     vm: PlayerViewModel,
@@ -473,8 +487,7 @@ private fun MixCard(mix: SmartMix, songs: List<Song>, onClick: () -> Unit) {
     val covers = remember(songs) { songs.mapNotNull { it.albumArtUri }.distinct().take(4) }
     Column(Modifier.width(144.dp).clickable(onClick = onClick)) {
         Box(
-            Modifier.size(144.dp).clip(RoundedCornerShape((env.style.cornerRadius * 0.45f).dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+            Modifier.size(144.dp).depthPanel(RoundedCornerShape((env.style.cornerRadius * 0.45f).dp), MaterialTheme.colorScheme.surfaceVariant, elevation = 4.dp),
             contentAlignment = Alignment.Center,
         ) {
             if (covers.size == 4) {

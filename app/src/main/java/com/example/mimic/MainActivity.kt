@@ -1,5 +1,6 @@
 package com.example.mimic
 
+import com.example.mimic.ui.designsystem.matteGrain
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -40,6 +41,18 @@ import com.example.mimic.ui.theme.MImicTheme
 class MainActivity : androidx.fragment.app.FragmentActivity() {
 
     private val playerViewModel: PlayerViewModel by viewModels()
+    private var useDarkSystemBarIcons = false
+
+    private fun applySystemBarAppearance() {
+        val bars = androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+        bars.isAppearanceLightStatusBars = useDarkSystemBarIcons
+        bars.isAppearanceLightNavigationBars = useDarkSystemBarIcons
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) applySystemBarAppearance()
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -51,12 +64,17 @@ class MainActivity : androidx.fragment.app.FragmentActivity() {
             val settings by viewModel.settings.collectAsStateWithLifecycle()
             val activeTheme by viewModel.activeTheme.collectAsStateWithLifecycle()
             val adaptiveSeed by viewModel.adaptiveSeed.collectAsStateWithLifecycle()
+            androidx.compose.runtime.SideEffect {
+                useDarkSystemBarIcons = !activeTheme.colors.isDark
+                applySystemBarAppearance()
+            }
             MImicTheme(theme = activeTheme, quality = settings.glassQuality, adaptiveSeed = adaptiveSeed) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
                 ) {
-                    Root(viewModel)
+                    // Black & Orange: fine matte grain under everything (no-op on other themes).
+                    androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().matteGrain()) { Root(viewModel) }
                 }
             }
         }

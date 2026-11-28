@@ -1,5 +1,6 @@
 package com.example.mimic.ui
 
+import com.example.mimic.ui.components.MimicSwitch
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,10 +18,12 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -30,6 +33,13 @@ import com.example.mimic.data.HomeSection
 import com.example.mimic.data.NavStyle
 import com.example.mimic.data.movedBy
 import com.example.mimic.player.PlayerViewModel
+import com.example.mimic.ui.designsystem.LocalGlass
+import com.example.mimic.ui.navigation.AnimatedMimicNavigation
+import com.example.mimic.ui.navigation.MotionPalette
+import com.example.mimic.ui.navigation.TopLevel
+import com.example.mimic.ui.navigation.forTheme
+import com.example.mimic.ui.navigation.mimicMotionTabs
+import com.example.mimic.ui.navigation.navigationMotion
 
 @Composable
 fun HomeCustomizeScreen(vm: PlayerViewModel, onBack: () -> Unit) {
@@ -50,17 +60,7 @@ fun HomeCustomizeScreen(vm: PlayerViewModel, onBack: () -> Unit) {
             )
         }
 
-        SelectRow(
-            "Navigation style",
-            listOf("Standard", "Floating", "Compact", "Liquid Glass", "Auto (theme)", "Floating Aura"),
-            config.navStyle.ordinal,
-        ) { vm.setHomeConfig(config.copy(navStyle = NavStyle.entries[it])) }
-        Text(
-            "Auto uses the Floating Aura dock on the Floating Aura theme, the floating glass pill on Liquid Glass themes and the standard bar otherwise.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
+        NavigationStylePicker(config.navStyle, settings.themeId) { vm.setHomeConfig(config.copy(navStyle = it)) }
 
         Text(
             "Home sections",
@@ -82,7 +82,7 @@ fun HomeCustomizeScreen(vm: PlayerViewModel, onBack: () -> Unit) {
                 Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Switch(
+                MimicSwitch(
                     checked = section !in config.hidden,
                     onCheckedChange = { visible ->
                         val hidden = if (visible) config.hidden - section else config.hidden + section
@@ -103,4 +103,38 @@ fun HomeCustomizeScreen(vm: PlayerViewModel, onBack: () -> Unit) {
         }
         Spacer(Modifier.height(24.dp))
     }
+}
+
+/** Shared appearance picker; preview taps never navigate the app. */
+@Composable
+internal fun NavigationStylePicker(selected: NavStyle, themeId: String, onPick: (NavStyle) -> Unit) {
+    var previewRoute by rememberSaveable { mutableStateOf(TopLevel.HOME.route) }
+    SelectRow(
+        "Navigation style",
+        NavStyle.entries.map { it.label },
+        selected.ordinal,
+    ) { onPick(NavStyle.entries[it]) }
+    Text(
+        "Auto follows the active theme, including the stitched Sliding Pill on Felt.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 16.dp),
+    )
+
+    selected.navigationMotion(themeId)?.let { motion ->
+        Text(
+            "Navigation preview",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.padding(start = 16.dp, top = 12.dp),
+        )
+        AnimatedMimicNavigation(
+            tabs = mimicMotionTabs,
+            selectedKey = previewRoute,
+            onSelect = { previewRoute = it },
+            motion = motion,
+            palette = MotionPalette.forTheme(themeId),
+            reduceMotion = LocalGlass.current.motionScale == 0f,
+        )
+    }
+
 }

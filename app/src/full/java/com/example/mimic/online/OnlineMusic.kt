@@ -65,6 +65,10 @@ object OnlineMusic {
     /** Upper bound for resolving one track on the player's loader thread. */
     private const val RESOLVE_TIMEOUT_MS = 25_000L
     private const val STREAM_CHUNK_BYTES = 2L * 1024 * 1024
+    @Volatile var discoverySession: Long = 0L
+        private set
+
+    suspend fun discovery(feed: com.example.mimic.data.online.DiscoveryFeed, seeds: List<String>, country: com.example.mimic.data.online.DiscoveryCountry = com.example.mimic.data.online.DiscoveryCountry.WORLDWIDE) = OnlineDiscovery.fetch(feed, seeds, country)
 
     @Volatile private var auth: AuthStore? = null
     @Volatile private var initialized = false
@@ -152,7 +156,9 @@ object OnlineMusic {
     suspend fun suggestions(input: String): List<String> =
         YtMusicRepository.searchSuggestions(input).getOrDefault(emptyList())
 
-    suspend fun collection(c: OnlineCollection): Result<OnlineCollectionPage> = when (c.kind) {
+    suspend fun collection(c: OnlineCollection): Result<OnlineCollectionPage> = if (c.browseId.startsWith("ytpl:")) {
+        runCatching { YouTubeSearch.playlist(c) }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+    } else when (c.kind) {
         OnlineCollectionKind.ARTIST -> YtMusicRepository.artistPage(c.browseId).map { page ->
             OnlineCollectionPage(
                 browseId = c.browseId, kind = c.kind,
@@ -255,6 +261,7 @@ object OnlineMusic {
     val youTubeMusicConnected: Boolean get() = auth?.cookie?.let(AuthStore::hasApiSid) == true
 
     internal fun onYouTubeMusicSession(cookie: String?) {
+        discoverySession++
         val store = auth ?: return
         if (cookie == null) store.signOut() else store.onNewSession(cookie)
         Innertube.cookie = cookie?.takeIf { AuthStore.hasApiSid(it) }

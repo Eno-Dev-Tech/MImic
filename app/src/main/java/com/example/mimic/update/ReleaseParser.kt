@@ -17,6 +17,9 @@ data class ReleaseInfo(
     val isPreRelease: Boolean,
     val apk: ReleaseAsset,
     val checksums: ReleaseAsset,
+    val protection: ReleaseAsset? = null,
+    /** Set only by an explicit local repair request, never read from GitHub JSON. */
+    val repair: Boolean = false,
 )
 
 /**
@@ -25,6 +28,16 @@ data class ReleaseInfo(
  * established later from the APK's signing certificate, not from this JSON.
  */
 object ReleaseParser {
+
+    fun repairCandidates(json: String, channel: UpdateChannel, edition: String, deviceAbis: List<String>,
+                         installedVersion: String, installedCode: Long): List<ReleaseInfo> {
+        val current = AppVersion.parse(installedVersion) ?: return emptyList()
+        val arr = runCatching { JSONArray(json) }.getOrNull() ?: return emptyList()
+        return (0 until arr.length()).mapNotNull { arr.optJSONObject(it)?.let { o -> parseRelease(o, edition, deviceAbis) } }
+            .filter { (channel == UpdateChannel.BETA || !it.isPreRelease) && it.protection != null &&
+                it.version >= current && AppVersion.versionCodeFor(it.version.toString()).toLong() >= installedCode }
+            .sortedByDescending { it.version }.map { it.copy(repair = true) }
+    }
 
     /**
      * The newest installable release for [channel] and [edition] on a device with [deviceAbis],
@@ -73,6 +86,7 @@ object ReleaseParser {
             isPreRelease = pre,
             apk = apk,
             checksums = sums,
+            protection = assets.firstOrNull { it.name == "protection-report.json" },
         )
     }
 

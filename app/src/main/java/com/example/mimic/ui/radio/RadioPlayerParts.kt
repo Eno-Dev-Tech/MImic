@@ -56,7 +56,9 @@ fun LiveRow(state: PlayerUiState, flag: String?, textColor: Color, mutedColor: C
                 modifier = Modifier.weight(1f),
             )
             if (state.playbackError != null) {
-                TextButton(onClick = onReconnect) {
+                if (com.example.mimic.ui.designsystem.LocalDepth.current.matteAmber) {
+                    com.example.mimic.ui.components.DepthIconButton(Icons.Default.Refresh, "Reconnect", onReconnect)
+                } else TextButton(onClick = onReconnect) {
                     Icon(Icons.Default.Refresh, null, tint = textColor, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(4.dp))
                     Text("Reconnect", color = textColor)
@@ -70,18 +72,18 @@ fun LiveRow(state: PlayerUiState, flag: String?, textColor: Color, mutedColor: C
 /** The phone's media volume (the same one the volume keys change). */
 @Composable
 fun VolumeSlider(iconColor: Color, accent: Color) {
-    val context = LocalContext.current
-    val audio = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
-    val max = remember { audio.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1) }
-    var level by remember { mutableFloatStateOf(audio.getStreamVolume(AudioManager.STREAM_MUSIC).toFloat() / max) }
+    // 4.8: shared media-volume state — also follows the hardware volume keys now.
+    val volume = com.example.mimic.player.rememberMediaVolume()
+    if (com.example.mimic.ui.designsystem.LocalDepth.current.matteAmber) {
+        com.example.mimic.ui.player.HardwareSlider("Media volume", volume.fraction, volume::setFraction, enabled = !volume.fixed)
+        return
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(Icons.AutoMirrored.Filled.VolumeDown, "Volume", tint = iconColor)
-        Slider(
-            value = level,
-            onValueChange = { v ->
-                level = v
-                audio.setStreamVolume(AudioManager.STREAM_MUSIC, (v * max).toInt(), 0)
-            },
+        com.example.mimic.ui.components.MimicSlider(
+            value = volume.fraction,
+            onValueChange = { v -> volume.setFraction(v) },
+            enabled = !volume.fixed,
             colors = SliderDefaults.colors(thumbColor = iconColor, activeTrackColor = accent),
             modifier = Modifier.weight(1f),
         )

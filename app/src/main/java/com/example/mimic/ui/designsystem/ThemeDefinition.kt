@@ -34,6 +34,22 @@ enum class NavIndicator { PILL, DOT }
 enum class GlassTone { AUTO, LIGHT, DARK }
 
 /**
+ * 3D surface style (MImic 4.8). FLAT is every theme before 4.8 and stays the default, so existing
+ * presets, custom themes and imported files render exactly as before.
+ *  - NEUMORPHIC: soft raised / recessed surfaces lit from the top-left, same color as the page.
+ *  - SKEUOMORPHIC: physical materials — beveled buttons, brushed-metal knobs, recessed grooves.
+ *  - HYBRID: neumorphic pages and cards, skeuomorphic player controls and knobs.
+ * Append-only: persisted by name.
+ */
+enum class DepthStyle(val label: String) {
+    FLAT("Flat"),
+    NEUMORPHIC("Neumorphism"),
+    SKEUOMORPHIC("Skeuomorphism"),
+    HYBRID("Hybrid Soft 3D"),
+    MATTE_AMBER("Studio Hardware"),
+}
+
+/**
  * Visual *style* of a theme beyond its colors (MImic 2.9). All fields default to the
  * pre-2.9 flat look, so every existing preset, custom theme and v1 JSON import keeps
  * rendering exactly as before. Glass themes opt in by setting [glass] = true.
@@ -65,6 +81,9 @@ data class ThemeStyle(
     val pillNav: Boolean = false,        // theme asks for the floating glass pill navigation
     val navIndicator: NavIndicator = NavIndicator.PILL,
     val auraNav: Boolean = false,        // theme asks for the Floating Aura dock (4.7)
+    // ---- 3D (4.8) ----
+    val depth: DepthStyle = DepthStyle.FLAT,
+    val depthStrength: Float = 1f,       // shadow / bevel intensity, 0.4 .. 1.6
     // ---- Typography ----
     val fontFamily: FontChoice = FontChoice.DEFAULT,
     val fontScale: Float = 1f,
@@ -90,6 +109,7 @@ data class ThemeStyle(
         artistWeight = artistWeight.coerceIn(100, 900) / 100 * 100,
         animationScale = animationScale.finiteOr(1f).coerceIn(0f, 1.5f),
         transitionSpeed = transitionSpeed.finiteOr(1f).coerceIn(0.5f, 2f),
+        depthStrength = depthStrength.finiteOr(1f).coerceIn(0.4f, 1.6f),
     )
 }
 
@@ -170,6 +190,19 @@ object ThemeRegistry {
         animationScale = 1.1f,
     )
 
+    private val SKEUO = ThemeStyle(
+        depth = DepthStyle.SKEUOMORPHIC, cornerRadius = 22, navCornerRadius = 26,
+        controlShape = ControlShape.CAPSULE, pillNav = true, headerWeight = 600, titleWeight = 500,
+    )
+    private val NEU = ThemeStyle(
+        depth = DepthStyle.NEUMORPHIC, cornerRadius = 26, navCornerRadius = 30,
+        controlShape = ControlShape.CAPSULE, pillNav = true, headerWeight = 600, titleWeight = 500,
+        fontFamily = FontChoice.SERIF,
+    )
+    private val HYBRID = ThemeStyle(
+        depth = DepthStyle.HYBRID, cornerRadius = 26, navCornerRadius = 30,
+        controlShape = ControlShape.CAPSULE, pillNav = true, headerWeight = 600, titleWeight = 500,
+    )
     /** The MImic flagship: dark liquid glass that re-tints itself from the playing album. */
     private val GLASS_MIMIC = ThemeStyle(
         glass = true, glassOpacity = 0.2f, blurRadius = 10, refraction = 0.85f, edgeHighlight = 0.8f,
@@ -190,7 +223,21 @@ object ThemeRegistry {
         text: Long = 0xFF101418, text2: Long = 0xFF55657A, style: ThemeStyle = ThemeStyle(),
     ) = ThemeDefinition(id, name, true, ThemeColors(primary, secondary, background, surface, elevated, text, text2, false), style)
 
+    const val FELT_CLASSIC_ID = "felt_classic"
+    const val FELT_ORANGE_ID = "felt_orange"
+
     val presets: List<ThemeDefinition> = listOf(
+        light(FELT_CLASSIC_ID, "Felt Classic", 0xFFA93A2B, 0xFF35486B, 0xFFF8F0DE,
+            0xFFF2E7D0, 0xFFE5D6BC, text = 0xFF283B5C, text2 = 0xFF35486B,
+            style = ThemeStyle(cornerRadius = 17)),
+        dark(FELT_ORANGE_ID, "Felt Orange", 0xFFFF801F, 0xFFE0D3C6, 0xFF151416,
+            0xFF242225, 0xFF393431, text = 0xFFF1E8DC, text2 = 0xFFE0D3C6,
+            style = ThemeStyle(cornerRadius = 17)),
+        dark(PLASMA_GLOW_ID, "Plasma Glow", 0xFFEAA7FF, 0xFF83CAFF, 0xFF0B0816, 0xFF191027, 0xFF2A1A3C,
+            text = 0xFFFAF2FF, text2 = 0xFFCEC0DB,
+            style = ThemeStyle(gradientBackground = true, gradientColor = 0xFF27123C, cornerRadius = 28,
+                controlShape = ControlShape.CAPSULE)),
+        dark(CONTROL_DECK_ID, "Studio Hardware", 0xFFDCB7FF, 0xFFB2A1C8, 0xFF1D1429, 0xFF211B29, 0xFF312739, text = 0xFFF6EFFB, text2 = 0xFFC5B8D0, style = SKEUO.copy(depth = DepthStyle.MATTE_AMBER, albumAdaptive = true)),
         // ---- MImic Liquid Glass flagship, then the 14 canonical MImic 2.9 presets ----
         dark("mimic_liquid_glass", "MImic Liquid Glass", 0xFF8AB4FF, 0xFFB79CFF, 0xFF080B12, 0xFF121826, 0xFF1C2436, text = 0xFFF3F6FC, text2 = 0xFFAFB9CC, style = GLASS_MIMIC),
         dark(AURA_ID, "Floating Aura", 0xFFC4A1FF, 0xFFFF9BD2, 0xFF0B0711, 0xFF151020, 0xFF20182F, text = 0xFFF5F0FF, text2 = 0xFFB4A8CC, style = AURA),
@@ -213,12 +260,23 @@ object ThemeRegistry {
         dark("rose_gold", "Rose Gold", 0xFFB76E79, 0xFFE8A2A2, 0xFF171013, 0xFF22171B, 0xFF301F26, text = 0xFFF6E7EC, text2 = 0xFFC79FAC),
         dark("purple_galaxy", "Purple Galaxy", 0xFF8E44EF, 0xFFC06BFF, 0xFF0E0A1A, 0xFF171026, 0xFF221634, text2 = 0xFFBCA9E0),
         dark("retro_vinyl", "Retro Vinyl", 0xFFD9A441, 0xFF8C5A2B, 0xFF17120B, 0xFF241B10, 0xFF332717, text = 0xFFF4E8D0, text2 = 0xFFC0A878),
+        // ---- 3D styles (4.8): a light and a dark variant of each ----
+        // Restored from 4.8 beta 2: saved selections must keep their original colors and style.
+        light("neu_ice", "Neumorphism · Soft Ice Blue", 0xFF3B5DB0, 0xFF6D8DDB, 0xFFE6EEF9, 0xFFE6EEF9, 0xFFDCE6F4, text = 0xFF101318, text2 = 0xFF4A5670, style = NEU),
+        dark("neu_ice_night", "Neumorphism · Ice Night", 0xFF9DB8FF, 0xFF6D8DDB, 0xFF1E2532, 0xFF1E2532, 0xFF262F3E, text = 0xFFE8EEF8, text2 = 0xFFA6B3C8, style = NEU),
+        dark("skeuo_graphite", "Skeuomorphism · Black & Orange", 0xFFFF7A1A, 0xFFFF4D0A, 0xFF242426, 0xFF1B1B1D, 0xFF2C2C2F, text = 0xFFEDEDEF, text2 = 0xFF9C9CA3, style = SKEUO),
+        light("skeuo_ivory", "Skeuomorphism · Studio Ivory", 0xFFA4481F, 0xFF8A6A3D, 0xFFE6E0D5, 0xFFF2EEE6, 0xFFDDD5C7, text = 0xFF2A241D, text2 = 0xFF5E5446, style = SKEUO),
+        light("hybrid_soft", "Hybrid Soft 3D", 0xFFA53D14, 0xFF3B5DB0, 0xFFE6EEF9, 0xFFE6EEF9, 0xFFDCE6F4, text = 0xFF101318, text2 = 0xFF4A5670, style = HYBRID),
+        dark("hybrid_soft_night", "Hybrid Soft 3D · Night", 0xFFFF8F4D, 0xFF9DB8FF, 0xFF1E2532, 0xFF1E2532, 0xFF262F3E, text = 0xFFE8EEF8, text2 = 0xFFA6B3C8, style = HYBRID),
         dark("high_contrast", "High Contrast", 0xFFFFEB3B, 0xFFFFFFFF, 0xFF000000, 0xFF000000, 0xFF141414, text = 0xFFFFFFFF, text2 = 0xFFFFFFFF),
     )
 
     private val byId = presets.associateBy { it.id }
     const val DEFAULT_ID = "emerald"
     const val AURA_ID = "floating_aura"
+    const val CONTROL_DECK_ID = "control_deck"
+    const val PLASMA_GLOW_ID = "plasma_glow"
+    private const val RETIRED_MATTE_AMBER_ID = "matte_amber_3d"
 
     /** The 14 presets from the 2.9 brief, in display order. */
     val CANONICAL_IDS = listOf(
@@ -226,6 +284,17 @@ object ThemeRegistry {
         "emerald", "arctic_light", "album_adaptive", "neon_cyberpunk", "midnight_blue",
         "sunset", "minimal_mono", "premium_gold", "material_you",
     )
+
+    val DEPTH_IDS: Set<String> = setOf(CONTROL_DECK_ID, "neu_ice", "neu_ice_night", "skeuo_graphite", "skeuo_ivory", "hybrid_soft", "hybrid_soft_night")
+
+    fun resolveSelection(id: String?): String =
+        when {
+            id == RETIRED_MATTE_AMBER_ID -> CONTROL_DECK_ID
+            id == null -> DEFAULT_ID
+            else -> id
+        }
+
+    fun usesHardwareControls(id: String): Boolean = id == CONTROL_DECK_ID
 
     fun byId(id: String?): ThemeDefinition = byId[id] ?: byId.getValue(DEFAULT_ID)
 }

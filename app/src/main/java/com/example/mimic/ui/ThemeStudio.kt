@@ -1,5 +1,6 @@
 package com.example.mimic.ui
 
+import com.example.mimic.ui.components.MimicSlider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -30,6 +31,9 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Remove
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -40,7 +44,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -73,6 +76,7 @@ import com.example.mimic.ui.components.GlassNavBar
 import com.example.mimic.ui.components.GlassNavItem
 import com.example.mimic.ui.components.MiniPlayer
 import com.example.mimic.ui.designsystem.ControlShape
+import com.example.mimic.ui.designsystem.DepthStyle
 import com.example.mimic.ui.designsystem.FontChoice
 import com.example.mimic.ui.designsystem.GlassTone
 import com.example.mimic.ui.designsystem.LocalGlass
@@ -83,6 +87,10 @@ import com.example.mimic.ui.designsystem.ThemeRegistry
 import com.example.mimic.ui.designsystem.ThemeStyle
 import com.example.mimic.ui.designsystem.controlShapeValue
 import com.example.mimic.ui.theme.MImicTheme
+import androidx.compose.ui.semantics.role
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SkipNext
+import androidx.compose.material.icons.filled.SkipPrevious
 import com.github.skydoves.colorpicker.compose.BrightnessSlider
 import com.github.skydoves.colorpicker.compose.HsvColorPicker
 import com.github.skydoves.colorpicker.compose.rememberColorPickerController
@@ -118,19 +126,25 @@ fun ThemeStudioScreen(
     onShare: (ThemeDefinition) -> Unit,
     onBack: () -> Unit,
     onOpenDynamicPlayer: () -> Unit = {},
+    onOpenRecovery: () -> Unit = {},
 ) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val themes by vm.allThemes.collectAsStateWithLifecycle()
+    val recovery by vm.recoveryStatus.collectAsStateWithLifecycle()
+    val canRemove = themes.size > 1 && !recovery.working
     var confirmDelete by remember { mutableStateOf<ThemeDefinition?>(null) }
     var confirmRestore by remember { mutableStateOf(false) }
     var overflow by remember { mutableStateOf(false) }
 
-    val canonical = ThemeRegistry.CANONICAL_IDS.mapNotNull { id -> themes.firstOrNull { it.id == id } }
+    val featuredIds = listOf(ThemeRegistry.PLASMA_GLOW_ID) + ThemeRegistry.CANONICAL_IDS
+    val canonical = featuredIds.mapNotNull { id -> themes.firstOrNull { it.id == id } }
     val flagship = themes.firstOrNull { it.id == "mimic_liquid_glass" }
     val aura = themes.firstOrNull { it.id == ThemeRegistry.AURA_ID }
     val legacy = themes.filter {
-        it.builtIn && it.id != "mimic_liquid_glass" && it.id != ThemeRegistry.AURA_ID && it.id !in ThemeRegistry.CANONICAL_IDS
+        it.builtIn && it.id != "mimic_liquid_glass" && it.id != ThemeRegistry.AURA_ID && it.id !in featuredIds &&
+            it.id !in ThemeRegistry.DEPTH_IDS
     }
+    val hardwareThemes = themes.filter { it.id in ThemeRegistry.DEPTH_IDS }
     val custom = themes.filter { !it.builtIn }
 
     Column(Modifier.fillMaxSize()) {
@@ -140,12 +154,25 @@ fun ThemeStudioScreen(
             Box {
                 IconButton(onClick = { overflow = true }) { Icon(Icons.Default.MoreVert, contentDescription = "More") }
                 DropdownMenu(expanded = overflow, onDismissRequest = { overflow = false }) {
-                    DropdownMenuItem(text = { Text("Restore defaults") }, onClick = { overflow = false; confirmRestore = true })
+                    DropdownMenuItem(text = { Text("Restore All Themes") }, enabled = !recovery.working,
+                        onClick = { overflow = false; vm.restoreRemovedThemes() })
+                    DropdownMenuItem(text = { Text("Reset Appearance Settings") }, enabled = !recovery.working,
+                        onClick = { overflow = false; confirmRestore = true })
+                    DropdownMenuItem(text = { Text("Recovery & Repair") },
+                        onClick = { overflow = false; onOpenRecovery() })
                 }
             }
         })
         LazyColumn(Modifier.fillMaxSize()) {
+            themeSection("3D themes", hardwareThemes, settings.themeId, vm, canRemove, onEdit, onExportFile, onShare) { confirmDelete = it }
             item(key = "quality") { GlassQualityPicker(settings.glassQuality, vm::setGlassQuality) }
+            item(key = "navigation") {
+                Column {
+                    NavigationStylePicker(settings.homeConfig.navStyle, settings.themeId) {
+                        vm.setHomeConfig(settings.homeConfig.copy(navStyle = it))
+                    }
+                }
+            }
             item(key = "dynamic") {
                 val inUse = settings.playerLayout.layout == com.example.mimic.data.PlayerLayout.DYNAMIC
                 Row(
@@ -179,6 +206,8 @@ fun ThemeStudioScreen(
                         selected = settings.themeId == theme.id,
                         onApply = { vm.setThemeId(theme.id) },
                         onCustomize = { onEdit(vm.duplicateTheme(theme)) },
+                        onRemove = { confirmDelete = theme },
+                        canRemove = canRemove,
                     )
                 }
             }
@@ -190,16 +219,20 @@ fun ThemeStudioScreen(
                         selected = settings.themeId == theme.id,
                         onApply = { vm.setThemeId(theme.id) },
                         onCustomize = { onEdit(vm.duplicateTheme(theme)) },
+                        onRemove = { confirmDelete = theme },
+                        canRemove = canRemove,
                         subtitle = "Animated floating dock — each tab lights it in its own color. Tap the icons to try it.",
                         tapToApply = false,
                     )
                 }
             }
-            themeSection("Presets", canonical, settings.themeId, vm, onEdit, onExportFile, onShare) { confirmDelete = it }
+            themeSection("Presets", canonical, settings.themeId, vm, canRemove, onEdit, onExportFile, onShare) { confirmDelete = it }
             if (custom.isNotEmpty()) {
-                themeSection("Your themes", custom, settings.themeId, vm, onEdit, onExportFile, onShare) { confirmDelete = it }
+                themeSection("Your themes", custom, settings.themeId, vm, canRemove, onEdit, onExportFile, onShare) { confirmDelete = it }
             }
-            themeSection("More presets", legacy, settings.themeId, vm, onEdit, onExportFile, onShare) { confirmDelete = it }
+            themeSection("More presets", legacy, settings.themeId, vm, canRemove, onEdit, onExportFile, onShare) { confirmDelete = it }
+            if (themes.size == 1) item { Text("Keep at least one theme available.", Modifier.padding(16.dp)) }
+            recovery.message?.let { message -> item { Text(message, Modifier.padding(16.dp), color = if (recovery.failed) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant) } }
             item(key = "footer") { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -207,11 +240,11 @@ fun ThemeStudioScreen(
     confirmDelete?.let { theme ->
         AlertDialog(
             onDismissRequest = { confirmDelete = null },
-            title = { Text("Delete \"${theme.name}\"?") },
-            text = { Text("This custom theme will be removed. Built-in presets are not affected. This can't be undone — export it first if you want a copy.") },
+            title = { Text("Remove theme?") },
+            text = { Text("You can restore this theme later from Settings > Updates.") },
             confirmButton = {
-                TextButton(onClick = { vm.deleteCustomTheme(theme.id); confirmDelete = null }) {
-                    Text("Delete", color = MaterialTheme.colorScheme.error)
+                TextButton(enabled = canRemove, onClick = { vm.removeTheme(theme.id); confirmDelete = null }) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } },
@@ -220,8 +253,8 @@ fun ThemeStudioScreen(
     if (confirmRestore) {
         AlertDialog(
             onDismissRequest = { confirmRestore = false },
-            title = { Text("Restore defaults?") },
-            text = { Text("Switches back to the default theme, resets glass quality and sets navigation and player styles to follow the theme. Your custom themes are kept.") },
+            title = { Text("Reset appearance settings?") },
+            text = { Text("Restores all hidden themes, switches back to the default theme, resets glass quality and sets navigation and player styles to follow the theme. Playback will pause and the sleep timer will be cancelled. Your custom themes, music, accounts and other settings are kept.") },
             confirmButton = { TextButton(onClick = { vm.restoreThemeDefaults(); confirmRestore = false }) { Text("Restore") } },
             dismissButton = { TextButton(onClick = { confirmRestore = false }) { Text("Cancel") } },
         )
@@ -233,6 +266,7 @@ private fun LazyListScope.themeSection(
     list: List<ThemeDefinition>,
     selectedId: String,
     vm: PlayerViewModel,
+    canRemove: Boolean,
     onEdit: (ThemeDefinition) -> Unit,
     onExportFile: (ThemeDefinition) -> Unit,
     onShare: (ThemeDefinition) -> Unit,
@@ -258,6 +292,8 @@ private fun LazyListScope.themeSection(
             onDelete = { onDelete(theme) },
             onExportFile = { onExportFile(theme) },
             onShare = { onShare(theme) },
+            canRemove = canRemove,
+            modifier = Modifier.animateItem(),
         )
     }
 }
@@ -301,13 +337,18 @@ private fun FlagshipCard(
     selected: Boolean,
     onApply: () -> Unit,
     onCustomize: () -> Unit,
+    onRemove: () -> Unit,
+    canRemove: Boolean,
     subtitle: String = "Liquid glass that re-tints itself from the playing album",
     // Floating Aura's preview dock is interactive, so tapping the preview tries it, not applies it.
     tapToApply: Boolean = true,
 ) {
     Column(Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-        MImicTheme(theme = theme, quality = quality) {
-            ThemeLivePreview(Modifier.height(240.dp).then(if (tapToApply) Modifier.clickable(onClick = onApply) else Modifier))
+        Box {
+            MImicTheme(theme = theme, quality = quality) {
+                ThemeLivePreview(Modifier.height(240.dp).then(if (tapToApply) Modifier.clickable(onClick = onApply) else Modifier))
+            }
+            ThemeRemovalButton(theme.name, canRemove, onRemove, Modifier.align(Alignment.TopEnd))
         }
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
@@ -338,10 +379,13 @@ private fun ThemeRow(
     onDelete: () -> Unit,
     onExportFile: () -> Unit,
     onShare: () -> Unit,
+    canRemove: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     var menu by remember { mutableStateOf(false) }
+    Box(modifier.fillMaxWidth()) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onApply).padding(horizontal = 16.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().padding(end = 48.dp).clickable(onClick = onApply).padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         ThemeSwatch(theme, size = 52)
@@ -351,6 +395,7 @@ private fun ThemeRow(
             val tags = buildList {
                 add(if (theme.colors.isDark) "Dark" else "Light")
                 if (theme.style.glass) add("Glass")
+                if (theme.style.depth != DepthStyle.FLAT) add("3D · ${theme.style.depth.label}")
                 if (theme.style.albumAdaptive) add("Adaptive")
                 add(if (theme.builtIn) "Built-in" else "Custom")
             }
@@ -375,16 +420,30 @@ private fun ThemeRow(
                 }
                 DropdownMenuItem(text = { Text("Export to file") }, onClick = { menu = false; onExportFile() })
                 DropdownMenuItem(text = { Text("Share") }, onClick = { menu = false; onShare() })
-                if (!theme.builtIn) {
-                    DropdownMenuItem(text = { Text("Delete…") }, onClick = { menu = false; onDelete() })
-                }
+                DropdownMenuItem(enabled = canRemove, text = { Text("Remove…") }, onClick = { menu = false; onDelete() })
             }
         }
+    }
+    ThemeRemovalButton(theme.name, canRemove, onDelete, Modifier.align(Alignment.TopEnd).padding(end = 4.dp))
+    }
+}
+
+/** Small glyph, full 48dp target; also testable without modifying real preferences. */
+@Composable
+internal fun ThemeRemovalButton(name: String, enabled: Boolean, onRemove: () -> Unit, modifier: Modifier = Modifier) {
+    IconButton(onClick = onRemove, enabled = enabled,
+        colors = androidx.compose.material3.IconButtonDefaults.iconButtonColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+            contentColor = MaterialTheme.colorScheme.onSurface,
+        ), modifier = modifier.size(48.dp).semantics {
+        if (!enabled) stateDescription = "Keep at least one theme available"
+    }) {
+        Icon(Icons.Default.Remove, contentDescription = "Remove $name", modifier = Modifier.size(18.dp))
     }
 }
 
 private enum class EditorSection(val label: String) {
-    COLORS("Colors"), GLASS("Glass"), SHAPES("Shapes"), TEXT("Text"), MOTION("Motion"), NAV("Navigation")
+    COLORS("Colors"), DEPTH("3D"), GLASS("Glass"), SHAPES("Shapes"), TEXT("Text"), MOTION("Motion"), NAV("Navigation")
 }
 
 @Composable
@@ -489,9 +548,33 @@ fun ThemeEditorScreen(
                         ColorTokenRow("Gradient color", colorOf("gradient"), auto = st.gradientColor == 0L, onReset = { style { copy(gradientColor = 0L) } }) { picking = "gradient" }
                     }
                 }
+                EditorSection.DEPTH -> {
+                    SelectRow("3D style", DepthStyle.entries.map { it.label }, st.depth.ordinal) { i -> style { copy(depth = DepthStyle.entries[i]) } }
+                    Hint(
+                        when (st.depth) {
+                            DepthStyle.FLAT -> "Flat: the classic MImic look."
+                            DepthStyle.NEUMORPHIC -> "Soft raised and recessed surfaces lit from the top-left."
+                            DepthStyle.SKEUOMORPHIC -> "Physical materials: beveled buttons, metal knobs, recessed grooves."
+                            DepthStyle.HYBRID -> "Soft neumorphic pages with realistic 3D player controls."
+                            DepthStyle.MATTE_AMBER -> "Raised charcoal controls with softly lit amber symbols."
+                        },
+                    )
+                    if (st.depth != DepthStyle.FLAT) {
+                        LabeledSlider("Depth intensity", st.depthStrength, 0.4f..1.6f, percent = true) { v -> style { copy(depthStrength = v) } }
+                        if (st.glass) Hint("Liquid Glass is on: glass wins on the bars and player. Turn it off in the Glass tab for full 3D.")
+                        if (draft.colors.surface != draft.colors.background) {
+                            Hint("Neumorphism reads best when cards are the same color as the page.")
+                            TextButton(
+                                onClick = { draft = draft.copy(colors = draft.colors.copy(surface = draft.colors.background)) },
+                                modifier = Modifier.padding(horizontal = 8.dp),
+                            ) { Text("Use the background color for surfaces") }
+                        }
+                    }
+                }
                 EditorSection.GLASS -> {
                     ToggleRow("Liquid Glass surfaces", st.glass) { v -> style { copy(glass = v) } }
                     Hint("Applies to the navigation bar, mini-player and player controls only — lists stay fast.")
+                    if (st.depth != DepthStyle.FLAT) Hint("This theme uses a 3D style, which draws its own surfaces: glass applies only when the 3D style is Flat.")
                     LabeledSlider("Transparency", 1f - st.glassOpacity, 0f..1f, percent = true) { v -> style { copy(glassOpacity = 1f - v) } }
                     LabeledSlider("Blur intensity", st.blurRadius.toFloat(), 0f..48f, suffix = "dp") { v -> style { copy(blurRadius = v.roundToInt()) } }
                     Hint("Low blur keeps a minimum frost so text on glass always stays readable.")
@@ -616,7 +699,7 @@ private fun LabeledSlider(
                 style = MaterialTheme.typography.bodySmall,
             )
         }
-        Slider(value = value.coerceIn(range), onValueChange = onChange, valueRange = range)
+        MimicSlider(value = value.coerceIn(range), onValueChange = onChange, valueRange = range)
     }
 }
 
@@ -800,7 +883,7 @@ fun ColorPickerDialog(initial: Long, onDismiss: () -> Unit, onPick: (Long) -> Un
 private fun ChannelSlider(label: String, value: Int, onChange: (Int) -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, Modifier.width(20.dp), color = MaterialTheme.colorScheme.onSurface)
-        Slider(
+        MimicSlider(
             value = value.toFloat(),
             onValueChange = { onChange(it.toInt()) },
             valueRange = 0f..255f,
@@ -845,4 +928,3 @@ fun ImportThemeDialog(onDismiss: () -> Unit, onImport: (String) -> String?) {
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }
-

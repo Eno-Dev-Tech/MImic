@@ -1,9 +1,71 @@
 import java.util.Properties
+import java.io.File
+import com.android.build.api.artifact.ArtifactTransformationRequest
+import com.android.build.api.artifact.SingleArtifact
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.provider.Property
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.OutputDirectory
+import org.gradle.api.tasks.TaskAction
+import org.gradle.process.ExecOperations
+import javax.inject.Inject
 
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+}
+
+// The public APK artifact is the protected unsigned APK, never the private R8
+// comparison. Failure aborts assemble/install; there is no skip-BLA property.
+abstract class BlaProtectApksTask @Inject constructor(private val execOps: ExecOperations) : DefaultTask() {
+    @get:InputDirectory abstract val inputApks: DirectoryProperty
+    @get:OutputDirectory abstract val outputApks: DirectoryProperty
+    @get:Internal abstract val projectRoot: DirectoryProperty
+    @get:Input abstract val python: Property<String>
+    @get:Internal abstract val transformationRequest: Property<ArtifactTransformationRequest<BlaProtectApksTask>>
+
+    @TaskAction fun protect() {
+        execOps.exec {
+            workingDir(projectRoot.get().asFile)
+            commandLine(python.get(), "tools/bla/apk_pipeline.py", "protect-directory",
+                inputApks.get().asFile.absolutePath, outputApks.get().asFile.absolutePath)
+        }.assertNormalExitValue()
+        transformationRequest.get().submit(this) { artifact ->
+            outputApks.file(File(artifact.outputFile).name).get().asFile.also {
+                check(it.isFile) { "Missing protected APK: $it" }
+            }
+        }
+    }
+}
+
+val installBlaDependencies = tasks.register<Exec>("installBlaDependencies") {
+    group = "verification"
+    description = "Install exactly the locked, reviewed BLA build dependencies (no lifecycle scripts)."
+    workingDir(rootProject.file("tools/bla"))
+    val windows = System.getProperty("os.name").startsWith("Windows")
+    commandLine(if (windows) listOf("cmd.exe", "/d", "/c", "npm.cmd", "ci", "--ignore-scripts", "--no-audit", "--no-fund")
+        else listOf("npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"))
+}
+
+androidComponents.onVariants(androidComponents.selector().withBuildType("release")) { variant ->
+    val protect = tasks.register<BlaProtectApksTask>("protect${variant.name.replaceFirstChar { it.uppercase() }}Apks") {
+        group = "build"
+        dependsOn(installBlaDependencies)
+        projectRoot.set(rootProject.layout.projectDirectory)
+        python.set(providers.gradleProperty("mimicPython").orElse(if (System.getProperty("os.name").startsWith("Windows")) "python" else "python3"))
+        inputs.files(rootProject.fileTree("tools/bla") { exclude("node_modules/**", "probe-*") })
+        outputs.upToDateWhen { false } // Verification must run on every production invocation.
+    }
+    val request = variant.artifacts.use(protect)
+        .wiredWithDirectories(BlaProtectApksTask::inputApks, BlaProtectApksTask::outputApks)
+        .toTransformMany(SingleArtifact.APK)
+    protect.configure {
+        outputApks.set(layout.buildDirectory.dir("outputs/bla/${variant.name}"))
+        transformationRequest.set(request)
+    }
 }
 
 // Release signing is read from a gitignored keystore.properties at the project root.
@@ -38,11 +100,11 @@ android {
         // ── App version: change ONLY versionName for a release (see docs/RELEASING.md). versionCode
         // is derived from it (4.1.2 → 400_100_299; betas get their own lower codes), so every
         // release is higher than the last and installs over it. 3.3 was versionCode 19.
-        versionName = "4.7.0-beta.4"
+        versionName = "4.8.1-beta.3"
         versionCode = versionCodeFor(versionName!!)
 
         // In-app updater: the public repository whose GitHub Releases MImic trusts (docs/RELEASING.md).
-        buildConfigField("String", "UPDATE_GITHUB_OWNER", "\"enoluca22-dota2\"")
+        buildConfigField("String", "UPDATE_GITHUB_OWNER", "\"Eno-Dev-Tech\"")
         buildConfigField("String", "UPDATE_GITHUB_REPO", "\"MImic\"")
         // SHA-256 of the signing certificate every MImic release must carry (the update is
         // rejected otherwise). It is the same certificate the installed app is signed with.
@@ -113,9 +175,9 @@ android {
     buildTypes {
         release {
             optimization {
-                enable = false
+                enable = true
             }
-            if (hasKeystore) signingConfig = signingConfigs.getByName("release")
+            // Production artifacts are protected, aligned and signed after R8.
         }
     }
     compileOptions {
@@ -139,6 +201,22 @@ android {
 // that Firebase ships separately as protolite-well-known-types; keep one copy (the newer runtime).
 configurations.matching { it.name.startsWith("full") }.configureEach {
     exclude(group = "com.google.firebase", module = "protolite-well-known-types")
+}
+
+// protobuf-javalite 4.x supplies com.google.protobuf well-known classes, but not
+// the com.google.type.LatLng / com.google.rpc.Status classes Firestore needs.
+// Keep those from Firebase's original AAR instead of excluding the entire payload.
+val firebaseWellKnownRaw: Configuration by configurations.creating {
+    isTransitive = false
+    isCanBeConsumed = false
+}
+dependencies { firebaseWellKnownRaw("com.google.firebase:protolite-well-known-types:18.0.0") }
+val firebaseWellKnownStripped = tasks.register<org.gradle.api.tasks.bundling.Jar>("stripFirebaseDuplicateProtobuf") {
+    archiveFileName.set("firebase-well-known-types-18.0.0-noprotobuf.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("stripped-libs"))
+    from(provider { firebaseWellKnownRaw.map { aar ->
+        zipTree(zipTree(aar).matching { include("classes.jar") }.singleFile)
+    } }) { exclude("com/google/protobuf/**") }
 }
 
 val newPipeExtractorRaw: Configuration by configurations.creating {
@@ -207,6 +285,7 @@ dependencies {
     "fullImplementation"("com.google.protobuf:protobuf-javalite:4.35.0")
     "fullImplementation"("org.mozilla:rhino:1.8.1")
     "fullImplementation"("org.mozilla:rhino-engine:1.8.1")
+    "fullImplementation"(files(firebaseWellKnownStripped))
     "fullImplementation"("io.github.dokar3:quickjs-kt-android:1.0.14")
     "fullImplementation"("androidx.security:security-crypto:1.1.0-alpha06")
     "fullImplementation"("io.ktor:ktor-client-okhttp:3.5.2")

@@ -1,4 +1,131 @@
+## 4.8.1-beta.3
+
+- Theme Studio now offers Restore All Themes, an explicit appearance reset and a shortcut to Recovery & Repair. Appearance reset atomically restores the default theme and visibility while retaining other preferences and personal data.
+- Navigation choices expose their selected state to accessibility, and system-bar icons follow the selected theme's light/dark appearance.
+- Hide individual themes with a confirmed minus control; retain choices across restarts and updates, switch safely when hiding the active theme and protect the last available theme.
+- Added Recovery & Repair to App Updates: restore removed themes offline, repair/reinstall an official compatible protected release and reset configurable settings while retaining personal data.
+- Explicit repair can reinstall the same version. All APKs require the original signature, exact release identity, checksums and protection evidence; downgrades remain blocked.
+- Interrupted downloads discard partial files, and cached installer retries are verified again.
+
+- Enabled R8 release optimization and obfuscation while preserving both Felt themes and all navigation styles.
+- Added pinned BLA 3.6.1 stealth DEX processing, independent integrity checks, alignment and original-key signing to production APK builds.
+- BLA's validated mode adds removable decoy text; it does not add method encryption or demonstrated JADX resistance beyond R8.
+- Production publication requires final signed APK emulator and upgrade verification. Debug builds remain usable for development.
+- Retained Firestore's required geographic/status types while excluding only duplicate protobuf classes.
+- Beta.2 was an internal validation fixture and was not published.
+
+## 4.8.1-beta.1
+
+- Added Felt Classic and Felt Orange themes with textured, stitched cards and tactile player controls.
+- Added Sliding Pill, Liquid Bulge, Floating Notch, Icon Fill, Expanding Label and Bubble Float navigation styles.
+- Choose a navigation style and try its live preview in Home customization. Auto uses Sliding Pill on Felt themes.
+- Preserved existing themes, navigation destinations, playback, library data and signing identity.
+- Published as a pre-release for the Beta update channel.
+
+## 4.8.0
+
+- Home discovery works without signing in: new music, song recommendations, and
+  suggested albums/playlists. Choose Worldwide, UK, USA or Albania on Home.
+- New music is sorted by recent YouTube upload dates; upload dates may differ from
+  original release dates. Country choices are music-search preferences.
+- SponsorBlock, reviewed Spotify/playlist CSV import, and calendar listening recaps.
+- Preserved Plasma Glow, Black & Orange and all existing native playback, Navidrome,
+  offline, theme and data features.
+- Published as a standard release so both Stable and Beta update channels can find it.
+- Future update checks use the canonical Eno-Dev-Tech/MImic repository. Earlier apps'
+  repository URL still redirects to this repository.
+## 4.8.0-beta.7 — private Home discovery (2026-11-20)
+
+- Home now includes New music, Recommended songs, and Suggested albums & playlists.
+- No sign-in needed. Choose Worldwide (default), UK, USA or Albania on Home; the
+  choice is saved and included in normal settings backups. It is a music-search
+  preference, not inferred from the device location, IP address or account.
+- Latest music appears first among the discovery rows. Public video search uses
+  this-week filtering and verifies upload dates within 14 days, newest first.
+  Upload dates may differ from original release dates; labels say so explicitly.
+- Recommendations use remembered online tracks where available, with public music
+  picks for a fresh library. Country selections use country-focused music queries.
+- Real album-playlist cards open in MImic's existing collection page and player.
+- Per-row refresh/retry, session caching, empty/failure states and source labels;
+  failed or empty refreshes retain previous picks. Reorder/hide rows in Home settings.
+- Package, signing identity, Navidrome, offline playback, user data and themes preserved.
+- Private build only. No push, publication or GitHub release.
+## 4.8.0-beta.6 — private Musify integration (2026-11-20)
+
+- Optional SponsorBlock skipping for YouTube streams and cached offline YouTube files,
+  using the existing Media3 player. Off by default; inactive during Listen Together.
+- Import Spotify playlist CSV files into a new playlist after reviewing exact matches
+  from the existing library. Missing and ambiguous recordings are listed, never guessed.
+- Monthly and annual calendar listening recaps with local time-zone/DST boundaries.
+- Restore the six original 3D presets, including Black & Orange, so saved selections
+  survive updates. Plasma Glow and the owner's uncommitted halo changes are preserved.
+- Same package and signing identity. Private local build only; no publication.
 # Changelog
+
+## 4.8.0-beta.5
+
+- Updated the existing Plasma Glow preset with a larger cyan, violet, and magenta wireframe halo. Its layers ripple independently during playback.
+- Album covers remain circular as tracks change in Classic and Dynamic Now Playing.
+- The volume slider uses its original vertical thumb and simple waveform display.
+
+
+## 4.8.0-beta.4
+
+- Added Plasma Glow as a separate Theme Studio preset.
+- Now Playing has a nebula backdrop and a cyan, violet, and pink halo that moves during playback and rests when paused.
+- Playback, shortcut, and navigation icons use an aurora gradient on dark controls.
+- Added a draggable waveform slider for media volume.
+
+
+## 4.8.0-beta.3
+
+- Studio Hardware now uses the textured charcoal Now Playing background, raised graphite controls, and orange-to-yellow symbols.
+- The larger volume dial stays in the same row and adds an illuminated ring and a moving level marker.
+- Matte Amber 3D is no longer a separate preset. An existing selection opens Studio Hardware.
+- MImic Liquid Glass, Floating Aura, and the other retained themes remain available. Retired Neumorphism, Skeuomorphism, and Hybrid Soft 3D presets fall back to Emerald.
+
+
+
+## 4.8.0-beta.2
+
+- Select **Studio Hardware** under Settings → Theme Studio → Hardware theme to apply the complete theme.
+- Now Playing includes beveled transport keys, a seek fader, a rotary media-volume knob, and an EQ bypass rocker. The controls also work with Dynamic Now Playing.
+- All six bottom navigation tabs use matching beveled keys, with an amber finish on the selected tab.
+
+## 4.8.0-beta.1
+Three switchable 3D styles. Nothing else changes: your library, downloads, Navidrome, radio,
+playlists and settings stay as they are, and every existing theme looks exactly as before.
+
+- **Theme Studio → 3D Styles.** Three live preview cards — tap one and the whole app switches
+  at once, no restart; the choice is kept after closing the app. A Light / Dark switch picks the
+  variant, and "Back to <your previous theme>" returns to the theme you used before.
+  - **Neumorphism — Soft Ice Blue:** icy-blue pages (#E6EEF9) where cards rise out of the page and
+    buttons press into it, soft white / navy shadows lit from the top-left, serif type, a thick raised
+    rim around the cover, and a play button that is a raised ring with a pressed-in centre.
+    Dark variant: Ice Night.
+  - **Skeuomorphism — Black & Orange:** a premium amplifier look: matte charcoal with a fine grain,
+    near-black equipment panels, matte domed knobs, glowing red-to-amber orange glyphs and LEDs, a
+    recessed seek groove with a glowing fill, uppercase letter-spaced labels and a volume knob with
+    a glowing level ring. Light variant: Studio Ivory.
+  - **Hybrid Soft 3D:** the soft Ice Blue pages with the Black & Orange hardware (graphite knobs,
+    orange light) set into them. Night variant included.
+- **3D player.** Play/pause, previous/next, shuffle/repeat, like, queue, lyrics, speed and sleep
+  buttons are 3D with pressed, selected (lit LED on the realistic styles) and disabled states; the
+  seek bar is a recessed groove with a raised thumb; the controls sit on a raised console.
+- **Volume dial.** Turn the knob to change the phone's media volume (the same volume as the
+  volume keys, and it follows them). Settings → Player Layout → Volume control: Auto / Off /
+  Slider / Dial. Small screens get the slider. Works with TalkBack (volume up / down actions).
+- **Everywhere else.** Mini-player, navigation bar (the selected tab is pressed in), album and
+  artwork tiles, Home cards, settings icons and option chips, switches, sliders (speed, EQ,
+  crossfade), cards, dialogs, menus and sheets follow the 3D style.
+- **Your themes.** The theme editor has a new "3D" tab: give any custom theme a 3D style and
+  depth intensity. Themes exported from 4.8 carry it; older theme files import as flat.
+- **Player Layout.** Controls has a new "3D" option; "Auto" picks 3D controls on 3D styles and
+  keeps glass / filled controls on every other theme. Explicit choices are respected.
+- **Performance.** Shadows are rendered once and reused (no live blur), the grain is one small tile,
+  list-row thumbnails stay flat; press animations follow Android's "Remove animations" setting.
+- **Lyrics and queue** use the 3D style too (3D transport on the lyrics screen; the current song is
+  pressed into the list).
 
 ## 4.7.0-beta.4
 Security hardening release. Nothing changes in how MImic looks or plays; your settings, library,

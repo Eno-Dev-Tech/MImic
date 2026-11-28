@@ -294,13 +294,14 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun daySeed(): Long = System.currentTimeMillis() / 86_400_000L
 
-    /** Listening stats window in days (7 / 30 / 365). */
+    /** Rolling days, or 0 = calendar month, -1 = calendar year. */
     val statsDays = MutableStateFlow(30)
 
     val listeningStats: StateFlow<com.example.mimic.data.ListeningStats?> =
-        combine(historyDao.historySince(System.currentTimeMillis() - 366 * com.example.mimic.data.ListeningStats.DAY_MS), songs, statsDays) { h, s, d ->
+        combine(historyDao.historySince(System.currentTimeMillis() - 366 * com.example.mimic.data.ListeningStats.DAY_MS), knownSongs, statsDays) { h, s, d ->
             val now = System.currentTimeMillis()
-            com.example.mimic.data.ListeningStats.compute(h, s, now, d, java.util.TimeZone.getDefault().getOffset(now).toLong())
+            if (d <= 0) com.example.mimic.data.ListeningStats.calendarRecap(h, s, now, annual = d == -1)
+            else com.example.mimic.data.ListeningStats.compute(h, s, now, d, java.util.TimeZone.getDefault().getOffset(now).toLong())
         }
             .flowOn(kotlinx.coroutines.Dispatchers.Default)
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -333,7 +334,9 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     val playlists: StateFlow<List<PlaylistEntity>> = playlistDao.playlists()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val settings: StateFlow<AppSettings> = settingsRepo.settings
+    private val _settingsReady = MutableStateFlow(false)
+    val settingsReady = _settingsReady.asStateFlow()
+    val settings: StateFlow<AppSettings> = settingsRepo.settings.map { _settingsReady.value = true; it }
         .stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 
     private var controller: MediaController? = null
@@ -717,6 +720,47 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
     /** Collections opened from search (the page route carries only the browse id). */
     private val onlineCollections = java.util.concurrent.ConcurrentHashMap<String, com.example.mimic.data.online.OnlineCollection>()
 
+    private var discoveryCountry = com.example.mimic.data.online.DiscoveryCountry.WORLDWIDE
+    private val discoveryStore = com.example.mimic.data.online.HomeDiscoveryStore(fetch = { feed, seeds ->
+        com.example.mimic.online.OnlineMusic.discovery(feed, seeds, discoveryCountry)
+    })
+    val homeDiscovery = discoveryStore.state
+    private val discoveryJobs = mutableMapOf<com.example.mimic.data.online.DiscoveryFeed, kotlinx.coroutines.Job>()
+    private var discoverySession = Long.MIN_VALUE
+    private var discoverySeeds: List<String> = emptyList()
+
+    fun loadHomeDiscovery(feeds: Set<com.example.mimic.data.online.DiscoveryFeed>, force: Boolean = false) {
+        if (!com.example.mimic.online.OnlineMusic.AVAILABLE || !_settingsReady.value) return
+        val session = com.example.mimic.online.OnlineMusic.discoverySession
+        val country = settings.value.discoveryCountry
+        if (session != discoverySession || country != discoveryCountry) {
+            discoveryJobs.values.forEach { it.cancel() }; discoveryJobs.clear()
+            discoveryStore.clear(); discoverySession = session; discoveryCountry = country
+        }
+        val ids = (recentlyPlayed.value.mapNotNull { com.example.mimic.data.online.OnlineIds.videoIdOf(it.remoteId) } +
+            onlineRows.value.sortedByDescending { it.lastSeenAt }.map { it.videoId }).distinct().take(3)
+        val changedSeeds = ids != discoverySeeds
+        if (com.example.mimic.data.online.DiscoveryFeed.RECOMMENDED in feeds) discoverySeeds = ids
+        for (feed in feeds) {
+            val refresh = force || (changedSeeds && feed == com.example.mimic.data.online.DiscoveryFeed.RECOMMENDED)
+            if (discoveryJobs[feed]?.isActive == true) {
+                if (!refresh) continue
+                discoveryJobs[feed]?.cancel()
+            }
+            discoveryJobs[feed] = viewModelScope.launch {
+                discoveryStore.load(feed, ids, refresh)
+                discoveryStore.state.value[feed]?.content?.let { content ->
+                    content.tracks.forEach { onlineSeen[it.videoId] = it }
+                    content.collections.forEach(::rememberCollection)
+                }
+            }
+        }
+    }
+
+    fun setDiscoveryCountry(country: com.example.mimic.data.online.DiscoveryCountry) {
+        viewModelScope.launch { settingsRepo.setDiscoveryCountry(country) }
+    }
+
     suspend fun onlineSearch(query: String, filter: com.example.mimic.data.online.OnlineSearchFilter) =
         com.example.mimic.online.OnlineMusic.search(query, filter).onSuccess { r -> r.tracks.forEach { onlineSeen[it.videoId] = it } }
 
@@ -964,6 +1008,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun createPlaylist(name: String, firstSong: Song? = null) = createPlaylist(name, listOfNotNull(firstSong))
 
+    fun setSponsorBlockEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepo.setSponsorBlockEnabled(enabled) }
+    }
+
     fun createPlaylist(name: String, songs: List<Song>) {
         rememberOnline(songs, inLibrary = true)
         viewModelScope.launch {
@@ -1022,6 +1070,16 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setThemeId(id: String) {
         viewModelScope.launch { settingsRepo.setThemeId(id) }
+    }
+
+    /**
+     * Theme Studio → 3D Styles (4.8): applies a 3D preset instantly. When leaving a non-3D theme,
+     * that theme is remembered so "Back to <theme>" can return to it.
+     */
+    fun applyDepthTheme(id: String) {
+        val current = activeTheme.value
+        val flat = current.style.depth == com.example.mimic.ui.designsystem.DepthStyle.FLAT
+        viewModelScope.launch { settingsRepo.setThemeIdRememberingFlat(id, if (flat) current.id else null) }
     }
 
     fun setPlayerLayout(config: com.example.mimic.data.PlayerLayoutConfig) {
@@ -1391,7 +1449,7 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /** Built-in presets plus the user's custom themes, for the gallery and resolution. */
-    val allThemes: StateFlow<List<com.example.mimic.ui.designsystem.ThemeDefinition>> =
+    private val themeCatalog: StateFlow<List<com.example.mimic.ui.designsystem.ThemeDefinition>> =
         customThemes
             .map { custom -> com.example.mimic.ui.designsystem.ThemeRegistry.presets + custom }
             .stateIn(
@@ -1400,10 +1458,20 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
                 com.example.mimic.ui.designsystem.ThemeRegistry.presets,
             )
 
+    /** Removal is a local visibility preference; the original catalog is never deleted. */
+    val allThemes: StateFlow<List<com.example.mimic.ui.designsystem.ThemeDefinition>> =
+        combine(themeCatalog, settings.map { it.removedThemeIds }.distinctUntilChanged()) { themes, removed ->
+            val visible = com.example.mimic.data.ThemeVisibility.visibleIds(themes.map { it.id }, removed).toSet()
+            themes.filter { it.id in visible }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000),
+            com.example.mimic.ui.designsystem.ThemeRegistry.presets)
+
     /** The selected theme (preset or custom), resolved once here instead of in every screen. */
     val activeTheme: StateFlow<com.example.mimic.ui.designsystem.ThemeDefinition> =
         combine(settings.map { it.themeId }.distinctUntilChanged(), allThemes) { id, themes ->
-            themes.firstOrNull { it.id == id } ?: com.example.mimic.ui.designsystem.ThemeRegistry.byId(id)
+            themes.firstOrNull { it.id == id }
+                ?: themes.firstOrNull { it.id == com.example.mimic.ui.designsystem.ThemeRegistry.DEFAULT_ID }
+                ?: themes.first()
         }
             .distinctUntilChanged()
             .stateIn(
@@ -1434,23 +1502,46 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch { settingsRepo.setGlassQuality(quality) }
     }
 
+    data class RecoveryStatus(val working: Boolean = false, val message: String? = null, val failed: Boolean = false)
+    private val _recoveryStatus = MutableStateFlow(RecoveryStatus())
+    val recoveryStatus: StateFlow<RecoveryStatus> = _recoveryStatus.asStateFlow()
+
+    private fun recover(success: String, operation: suspend () -> Unit) {
+        if (_recoveryStatus.value.working) return
+        _recoveryStatus.value = RecoveryStatus(working = true)
+        viewModelScope.launch {
+            try {
+                operation()
+                _recoveryStatus.value = RecoveryStatus(message = success)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                _recoveryStatus.value = RecoveryStatus(message = "Couldn't finish recovery. Your personal data has not been deleted. Try again.", failed = true)
+            }
+        }
+    }
+
+    fun removeTheme(id: String) = recover("Theme removed. You can restore it in Settings > Updates.") {
+        check(settingsRepo.removeTheme(id, themeCatalog.value.map { it.id })) { "Keep at least one theme" }
+    }
+
+    fun restoreRemovedThemes() = recover("Removed themes restored.") { settingsRepo.restoreRemovedThemes() }
+
+    fun resetAppSettings() = recover("Default settings restored. Your personal data has been kept.") {
+        pause() // Keep the queue; never stopPlayback(), clear media or delete music caches.
+        cancelSleepTimer()
+        settingsRepo.resetConfigurablePreferences()
+        container.updateManager.resetPreferences()
+    }
+
     /**
      * "Restore defaults" in Theme Studio: back to the default preset and device-appropriate glass
      * quality, nav/player styles back to follow-the-theme. Custom themes are NOT touched.
      */
-    fun restoreThemeDefaults() {
-        viewModelScope.launch {
-            val s = settings.value
-            settingsRepo.setThemeId(com.example.mimic.ui.designsystem.ThemeRegistry.DEFAULT_ID)
-            settingsRepo.setGlassQuality(com.example.mimic.data.GlassQuality.safeDefault())
-            settingsRepo.setHomeConfig(s.homeConfig.copy(navStyle = com.example.mimic.data.NavStyle.AUTO))
-            settingsRepo.setPlayerLayout(
-                s.playerLayout.copy(
-                    background = com.example.mimic.data.PlayerBackground.AUTO,
-                    controlStyle = com.example.mimic.data.ControlStyle.AUTO,
-                ),
-            )
-        }
+    fun restoreThemeDefaults() = recover("Default appearance restored. Your personal data has been kept.") {
+        pause()
+        cancelSleepTimer()
+        settingsRepo.resetAppearancePreferences()
     }
 
     fun saveCustomTheme(theme: com.example.mimic.ui.designsystem.ThemeDefinition, apply: Boolean) {
@@ -1517,6 +1608,10 @@ class PlayerViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setAudio(prefs: com.example.mimic.data.AudioPrefs) {
         viewModelScope.launch { settingsRepo.setAudio(prefs) }
+    }
+
+    fun setEqualizerEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepo.setEqualizerEnabled(enabled) }
     }
 
     fun setSpeed(speed: Float) = setAudio(settings.value.audio.copy(speed = speed.coerceIn(0.5f, 2f)))
@@ -1889,6 +1984,9 @@ private fun Song.toMediaItem(): MediaItem = MediaItem.Builder()
             .setTitle(title)
             .setArtist(artist)
             .setAlbumTitle(album)
+            .setExtras(android.os.Bundle().apply {
+                com.example.mimic.data.online.OnlineIds.videoIdOf(remoteId)?.let { putString("mimic_youtube_id", it) }
+            })
             .setArtworkUri(albumArtUri?.let { android.net.Uri.parse(it) })
             .build(),
     )

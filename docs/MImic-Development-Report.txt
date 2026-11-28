@@ -1,8 +1,9 @@
 MIMIC — COMPLETE DEVELOPMENT REPORT
 ===================================
-Last updated: 2026-11-09 (4.7.0-beta.4 — security hardening: 40-control audit, backup/network
-              policy, release security gate, GitHub scanning; see docs/security/)
-Previous: 2026-11-05 session 3 (4.7.0-beta.3 — Floating Aura motion from the video); session 2 (4.7.0-beta.2 — Floating Aura rebuilt from the reference); session 1 (4.7.0-beta.1 — first Floating Aura, built from text only); 2026-11-02 session 3 (4.6.0-beta.3 — automatic playlist loading); session 2 (4.6.0-beta.2 — Mix preview); session 1 (4.6.0-beta.1 — playlist downloads with per-song selection +
+Last updated: 2026-11-27 (4.8.1-beta.3 — BLA production pipeline and theme recovery;
+              validation in progress, not published; see dated entries at the end)
+Previous: 2026-11-09 (4.7.0-beta.4 — security hardening: 40-control audit, backup/network
+              policy, release security gate, GitHub scanning; see docs/security/); 2026-11-05 session 3 (4.7.0-beta.3 — Floating Aura motion from the video); session 2 (4.7.0-beta.2 — Floating Aura rebuilt from the reference); session 1 (4.7.0-beta.1 — first Floating Aura, built from text only); 2026-11-02 session 3 (4.6.0-beta.3 — automatic playlist loading); session 2 (4.6.0-beta.2 — Mix preview); session 1 (4.6.0-beta.1 — playlist downloads with per-song selection +
               compact mini player, recovered from the second PC's APK); 2026-10-26 (Listen Together + automatic lyrics + icons, 4.5.0-beta.1 … beta.4)
 Keep this file current after every session. Plain text, written so it can be pasted into a
 new ChatGPT / Claude conversation without access to the repository.
@@ -11,7 +12,8 @@ new ChatGPT / Claude conversation without access to the repository.
 A. PROJECT IDENTITY
 -------------------
 App name ............ MImic
-Current version ..... 4.7.0-beta.4  (versionCode 400700037)
+Current version ..... 4.8.1-beta.3 (versionCode 400800136), validation in progress;
+                      last PUBLISHED release: 4.8.1-beta.1 (400800134)
 Application ID ...... com.example.mimic  (never change)
 Repository .......... https://github.com/enoluca22-dota2/MImic  (PUBLIC — owner's decision on
                       2026-10-25, because the in-app updater downloads release assets anonymously)
@@ -86,7 +88,8 @@ Accounts: data/account/MimicAccount.kt (Credential Manager "Sign in with Google"
   stored by AuthStore in encrypted prefs). UI: ui/settings/AccountsScreen.kt.
 Radio: data/radio/ (bundled stations + Radio Browser directory, countries list default Albania,
   +/− add/remove, DataStore radio_prefs), ui/radio/.
-Themes: Theme Studio (14 presets + custom themes JSON v2, glass styles), Player Layout Studio
+Themes: Theme Studio (14 presets + custom themes JSON v2, glass styles; 4.8: 3D Styles —
+ThemeStyle.depth FLAT/NEUMORPHIC/SKEUOMORPHIC/HYBRID, see section 4.8), Player Layout Studio
   (Classic / Immersive / Compact / Dynamic), Home & navigation customisation, Album-Adaptive colours.
 Updater: update/ (UpdateManager, UpdateCheckWorker): reads GitHub Releases of the public repo,
   picks the APK for the phone's CPU, verifies SHA-256 (SHA256SUMS.txt), package, version and the
@@ -919,3 +922,414 @@ artwork, 4.2 Radio, 4.3 Backup & Restore + Library & Storage, 4.3.1 download dia
 4.4 online music (BitChord), LRCLIB lyrics, accounts & sync code, 4.5 Listen Together,
 automatic lyrics (root cause fixed), new neon E icon, 4.6 playlist downloads with per-song
 selection + compact mini player.
+
+
+4.8 — THREE 3D STYLES (2026-11-14, branch feature/4.8-3d-styles, version 4.8.0-beta.1)
+-------------------------------------------------------------------------------------
+References (authoritative, inspected visually): Desktop\MImic\UI-Reference\
+  01-Neumorphism.png   — Soft Ice Blue (two light ice-blue phones, serif, raised/inset round buttons)
+  02-Skeuomorphism.png — Black & Orange equipment UI (the owner's favourite)
+  1/2/3.jpeg           — NOT 3D references: the CODEXURE Floating Aura dock screenshots (4.7).
+  There is NO Hybrid reference image; Hybrid = 01's pages + 02's hardware. Replace if the owner
+  provides one.
+Design: a theme TOKEN, not a parallel system. ThemeStyle.depth (+ depthStrength 0.4..1.6),
+  serialized as "depth"/"depthStrength" in theme JSON and the Room style column (no migration;
+  older files/rows = FLAT). FLAT is the default, so every existing theme renders exactly as before.
+  ui/designsystem/Depth.kt: DepthColors (pure ARGB math), DepthPalette/depthPalette (derived once
+  per theme, provided as LocalDepth by MImicTheme), Modifier.depthPanel (raised/inset panels; on
+  FLAT it is exactly clip+background), Modifier.depthControl (button bodies per state),
+  Modifier.matteGrain (96px noise tile, Black & Orange only). Shadows = Compose 1.10's cached
+  dropShadow/innerShadow (rendered once per size, no live blur).
+  ui/components/DepthComponents.kt: DepthIconButton (pressed / selected LED / disabled / bare
+  glyph), GlowIcon, MimicSlider / MimicSwitch / MimicCard (Material originals on FLAT),
+  VolumeKnob, PlayerVolumeControl, DepthChip. player/MediaVolume.kt: STREAM_MUSIC state that
+  follows the hardware keys (VOLUME_CHANGED broadcast); the radio volume slider uses it too.
+Presets (ids stable): neu_ice "Neumorphism · Soft Ice Blue" / neu_ice_night; skeuo_graphite
+  "Skeuomorphism · Black & Orange" / skeuo_ivory (light); hybrid_soft / hybrid_soft_night.
+  ThemeRegistry.DEPTH_PRESETS / DEPTH_IDS / depthPresetId(style, dark).
+Theme Studio: "3D Styles" section at the top (3 live preview cards, Light/Dark variant,
+  "Back to <previous theme>" — settings key last_flat_theme_id, written by
+  PlayerViewModel.applyDepthTheme); a "3D style presets" list; editor tab "3D".
+Player: ControlStyle.TACTILE (appended; AUTO -> TACTILE on 3D themes, explicit choices win);
+  VolumeControl AUTO/OFF/SLIDER/DIAL (key player_volume_control; AUTO = dial with 3D controls,
+  slider on screens < 680dp tall). 3D themes resolve PlayerBackground.AUTO to SOLID.
+  The Dynamic Now Playing layout is NOT restyled (artwork-driven by design).
+Reach: Now Playing, mini-player, floating nav (pillNav), artwork tiles, Home/settings tiles
+  (depthPanel), every Switch/Slider/Card call site, SelectRow chips, dialogs/menus/sheets
+  (surfaceContainer* tokens on 3D themes only), queue current row, lyrics transport.
+  List-row thumbnails stay flat (performance; the references keep them flat too).
+Tests: DepthStyleTest (16: tokens, round trip, presets, WCAG contrast >= 7 text / 4.5 secondary
+  & accent, palette, resolution, knob math). Full: 331 (full) + 213 (standard) pass; lint passes.
+Emulator (YTD_Test_4K = emulator-5554, debug build 4.8.0-beta.1 installed over 4.7.0-beta.4):
+  PASS  3 styles render; instant switching; persistence after force-stop; Back to previous theme
+  PASS  knob turns the real media volume (14 -> 9 of 15); knob follows hardware keys (12 -> 10)
+  PASS  play/pause (Media3 PLAYING/PAUSED), seek (50% / 33%), next/previous on a library queue,
+        shuffle/repeat/like lit states, queue sheet, lyrics (LRCLIB synced, credited)
+  PASS  flat theme Now Playing unchanged; Classic/Immersive/Compact on 3D; Compact @ 130% font
+  PERF  library scroll after warm-up: 3D jank 1.6-2.3% vs flat 1.8%, p99 34 vs 30 ms (debug build)
+  NOT TESTED  Navidrome (no credentials, as before), physical Samsung/Xiaomi phones, release-build
+        frame timing, TalkBack walkthrough, updater 4.7.0-beta.4 -> 4.8.0-beta.1 (not published)
+Release status: BLOCKED by the release security gate: the gitleaks history scan (--all branches)
+  flags the synthetic token in ListenTogetherProtocolTest.kt on the LOCAL commercial/standard-
+  edition branch (commit efb6eaa) — not part of this release. Needs the owner's decision (allowlist
+  with reason, or change that fixture on that branch) before scripts/release.sh --publish.
+
+
+PRIVATE MUSIFY INTEGRATION — 2026-11-20
+MIMIC + MUSIFY — PRIVATE INTEGRATION REPORT
+Date: 2026-11-20 (Europe/Budapest)
+
+Local access: VERIFIED. Existing native Android project:
+C:\Users\Eno\AndroidStudioProjects\MImic
+Initial branch: release/4.8.0-beta.5; HEAD 52ca111.
+Existing dirty IDE files, .claude, 123.txt and PlasmaGlow.kt were preserved.
+A private workspace copy was used for compilation; the tested source changes were
+then copied into the original project with byte-for-byte verification. Replaced
+source files were saved privately under work/original-before-integration in this
+chat's workspace. No commit, push, GitHub release or code/APK upload was performed.
+
+Build: MImic 4.8.0-beta.6, versionCode 400800039, full edition.
+Application ID remains com.example.mimic.
+Signing certificate SHA-256:
+C03C51075A49A049387185C775626074368AA9F4220EB5BA0E74CC4A4F88087D
+Final universal release APK signature verified with Android apksigner.
+Uses the existing local key. No key was generated or included in deliverables.
+
+Upstream inspected: full shallow clone of gokadzev/Musify master,
+commit 5f6a5e7b497bc2bccd0985f731db1afe6dcdda9a.
+Musify is Flutter/Dart; MImic is Kotlin/Compose/Media3. A direct whole-app merge
+would introduce another player, database and UI runtime. Compatible logic and
+features were ported into the existing native architecture instead.
+
+IMPLEMENTED
+1. SponsorBlock (Settings > Playback & audio): opt-in, off by default. Uses the
+existing player to seek over sponsor/selfpromo/interaction/intro/outro/music_offtopic
+segments. YouTube only; local files, Navidrome and radio have no eligible video ID.
+Streaming lookups send the video ID to sponsor.ajay.app over HTTPS. Downloaded
+YouTube audio uses cache only. Bounded cache, millisecond precision, merged ranges,
+network timeout/response limit, confirmed 404 caching, failure-safe playback.
+Inactive during Listen Together to avoid desynchronizing the shared timeline.
+2. Spotify/playlist CSV import (Settings > Backup & Restore > Import Spotify /
+playlist CSV): parses BOM, quoted fields, escaped quotes and embedded newlines.
+Review before creation; exact title+artist matches against existing MImic library,
+CSV order, unique song IDs, missing/ambiguous tracks shown. Creates a new playlist;
+existing playlists and audio are untouched. Limits: 1 MB text, 5000 tracks.
+3. This month / This year calendar recaps under Listening stats. Reuses play history
+and known online tracks; local calendar boundaries include DST. Existing rolling
+7/30/365-day views remain. Listening duration is still the existing clearly labeled
+full-track estimate, not a new measurement of actual listening seconds.
+4. Theme preservation fix: restored all six original 4.8 beta 2 presets (Soft Ice
+Blue, Ice Night, Black & Orange, Studio Ivory, Hybrid Soft 3D and Night). The beta 5
+source had removed these and mapped existing selections to emerald. Preserved their
+original IDs/colors/styles. Current Control Deck and Plasma Glow remain. The owner's
+uncommitted PlasmaGlow.kt is byte-for-byte identical in original and build copy.
+
+EXISTING COMPATIBLE FEATURES RETAINED
+Navidrome/OpenSubsonic/Tailscale, local library, downloads and offline playback,
+online search/suggestions/streaming and playlist links, radio, LRCLIB/embedded/
+sidecar/Navidrome lyrics, native equalizer, sleep timer, speed/pitch, backup/restore,
+optional account sync, themes and the existing updater. No database schema change
+or destructive migration. No account credentials or server data were altered.
+
+VERIFICATION
+PASS: assembleFullDebug and assembleFullRelease, all ABI splits + universal.
+PASS: full unit suite: 347 total, 344 passed, 3 skipped, 0 failures/errors.
+PASS: standard unit suite: 229 total, 228 passed, 1 skipped, 0 failures/errors.
+Includes 13 new integration unit tests in each edition for CSV matching/parser,
+SponsorBlock range handling and calendar/DST recaps; all passed.
+PASS: lintFullDebug and release vital lint; 162 warnings and 6 hints remain.
+The first untouched baseline lint attempt crashed inside Kotlin lint; later full
+runs, including the final theme-preservation build, completed successfully.
+PASS: emulator-5554 (YTD_Test_4K), real Media3 playback of generated silent WAV:
+cached offline segment skip, disabled toggle timeline, party timeline (3 tests).
+PASS: existing emulator credential and database/theme/download migration tests
+(10 tests), using separate test databases.
+PASS: same-certificate install -r over existing app without uninstall/clear-data.
+Before first app launch, SHA-256 fingerprints of mimic.db, its WAL, downloader DB
+and WAL, settings, radio prefs and playback state were unchanged across install.
+PASS: signed release installs and opens; saved Black & Orange theme restored,
+48 phone songs and existing pinned playlist/paused track remain visible.
+Screenshots and detailed build/test logs accompany this report.
+
+LIMITATIONS / NOT VERIFIED
+This is a substantial native integration increment, not 100% Musify feature parity.
+Spotify import currently matches existing library recordings only; it does not log
+into Spotify, fetch Spotify audio, use exporter services or automatically search
+YouTube for missing recordings. Ambiguous title/artist matches are skipped.
+Musify's Hive backup/playlist formats and secure local-network device sync are not
+ported. MImic's native backups/account sync are retained but are not cross-app sync.
+Musify-specific UI, 21-language catalog, recommendation queue and measured listening
+seconds are not imported. Existing updater is preserved; no Musify updater added.
+No physical phone test, live authenticated Navidrome/Tailscale playback, Spotify
+account test, end-to-end live YouTube streaming, live SponsorBlock HTTP fetch or
+two-device Listen Together session was claimed. Local playback/cached skipping is
+verified; network-provider availability remains dependent on the services/network.
+
+LICENSE / PRIVATE USE
+MImic already uses GPL-3.0. Musify's LICENSE is standard GPLv3; inspected upstream
+source headers grant GPL-3.0-or-later where stated. Copyright notices, adaptation
+notes, dates and upstream LICENSE are retained; a copy is bundled in APK assets.
+GPLv3 section 2 permits private modifications and execution without a requirement
+to publish source publicly. If copies are later conveyed to others, sections 4–6
+introduce notice, licensing and Corresponding Source obligations; a public GitHub
+repository is not inherently required. Musify's README summary states restrictions
+broader than the standard GPL (including commercial redistribution); resolve that
+with upstream before future distribution. Private use does not waive unrelated
+copyright or service-access rules. No DRM/access controls were bypassed.
+SponsorBlock runtime data: CC BY-NC-SA 4.0. Attribution beside the setting and in
+THIRD_PARTY_NOTICES.md. Cached data is not bundled with the APK.
+Sources:
+https://raw.githubusercontent.com/gokadzev/Musify/master/LICENSE
+https://github.com/gokadzev/Musify
+https://wiki.sponsor.ajay.app/w/API_Docs
+https://github.com/ajayyy/SponsorBlock/wiki/Database-and-API-License
+
+DELIVERABLES
+Private signed universal APK (all included CPUs), ARM64 phone APK and x86_64
+emulator APK; SHA256SUMS.txt; source-change archive with licenses; screenshots;
+full build/lint and instrumentation logs. APKs are local files only. No secrets,
+keystore, account data or user databases are included in the source-change archive.
+
+ADDITIONAL SCREEN CHECKS
+PASS: calendar-month recap renders the existing 28 plays, 14 different songs and 1 h 10 min estimated time.
+PASS: Plasma Glow home and player/halo render in the signed release; screenshots 05 and 06.
+PASS: importer refuses the filtered 19-second track and flags duplicate title/artist recordings as ambiguous. These are deliberate safe outcomes, not automatic substitutions.
+
+PASS: original active Black & Orange theme restored after temporary Plasma Glow UI checks.
+
+
+FINAL RELEASE UI CHECK: CSV import created Musify_CSV_Test with exactly one song, Caroline: Supernova 2008ha (1:30). Existing Phase2 Test playlist remains. Test playlist left on the emulator for review. Screenshots 02 and 07 document preview and persistence. Black & Orange is active again; Plasma Glow home/player and the monthly recap were also visually verified. This is a private local build; no publication.
+
+
+
+PRIVATE HOME DISCOVERY CONTINUATION — 2026-11-20
+MIMIC — HOME DISCOVERY AND COUNTRY FEEDS
+Private build 4.8.0-beta.7 (versionCode 400800040)
+Date: 2026-11-20, Europe/Budapest
+
+Implemented in the existing native MImic project, not a replacement app.
+Home has New music, Recommended songs, and Suggested albums & playlists.
+Latest music is first among the discovery rows. All rows can be hidden/reordered
+using Settings > Home & Navigation; source filters keep online feeds out of Phone,
+Navidrome-only and Downloaded views.
+
+NO SIGN-IN REQUIRED
+The signed-out default uses public YouTube metadata with the existing bundled
+NewPipe client. It does not require a YouTube Music account, an API key, or local
+YouTube Music catalogue availability. The emulator live tests explicitly recorded
+accountConnected=false for all four choices. Existing account settings are retained;
+an already connected account may enrich Worldwide picks, with public fallbacks.
+No regional access controls, DRM or account permissions were bypassed.
+
+COUNTRY PICKER
+Home > Discover music > Worldwide / UK / USA / Albania.
+Worldwide is the default; selection is saved in normal app preferences and included
+in existing settings backups. It is not automatically chosen from the device's IP,
+location, locale or account. Country changes clear old-country results before loading
+the new feed. Waiting for preferences avoids starting the wrong feed on app launch.
+The saved Albania choice survived app updates and repeated process restarts in tests.
+Country options are country-focused music search queries, not official national
+charts or a verified database of artist nationality. No location permission added.
+
+WHAT THE FEEDS MEAN
+New music: public music-video results filtered to recent uploads, checked against
+reported upload dates within 14 days and sorted newest-first. Up to three result
+pages are checked for sparse feeds. Original song release dates may be older;
+Home labels this distinction explicitly. This is NOT a verified release-date feed.
+Recommendations: related picks from remembered online tracks for Worldwide when
+available; public music-search picks otherwise. No listening history is required.
+Country recommendations use country-focused music queries. Public seeds/queries
+are sent to YouTube, not local music files or Navidrome credentials.
+Albums/playlists: real playlist IDs, titles, publisher/channel names and per-item
+artwork from an album search. Results remain typed and labelled as playlists;
+no album identities or original release dates are fabricated. Catalogue albums may
+appear through an already connected YouTube Music account where that service works.
+Cards open in MImic's existing collection screen/player, with Play/Shuffle/download
+and playlist actions. Large playlists use the initialized extractor across pages,
+up to 300 tracks / four continuations; partial/capped results show a track-count note.
+
+RELIABILITY
+Independent per-row loading, Refresh/Retry, truthful empty/error text, 30-minute
+session caching, 60-second automatic failure cooldown and a 20-second row timeout.
+Failed or empty refreshes retain prior successful picks with a saved-this-session
+label. Cache metadata is in memory, not a new user database. Restarting offline may
+show unavailable discovery; existing offline audio playback remains available.
+No competing player or download store; no new library dependency or DB migration.
+
+VERIFIED
+PASS: Full unit suite: 359 tests, 356 passed, 3 skipped, 0 failures/errors.
+PASS: Standard unit suite: 237 tests, 236 passed, 1 skipped, 0 failures/errors.
+592 passed unit tests total. New checks cover caching/coalescing, refresh failure and
+empty results, cancellation, session resets, saved Home-order migration, mapping,
+related-song ranking and recent-date validation.
+PASS: 13 existing emulator playback/database/theme/credential regression tests.
+PASS: four live no-sign-in country tests (Worldwide, UK, USA, Albania). Each checked
+all three non-empty feeds, real item IDs/metadata and opening a suggested album
+playlist into actual playable-track metadata. 17 emulator tests passed total.
+PASS: Full release build and lintFullDebug / release vital lint.
+PASS: live Home UI shows Albania recent music with actual artwork and song titles,
+recommendations and album/playlist cards; chooser contains all four options.
+PASS: saved country remained Albania through installing updates and repeated restarts.
+PASS: package com.example.mimic and existing signing identity retained; install -r
+without uninstalling or clearing data. Existing 48 phone songs and playlists remain.
+Navidrome/offline/theming code and the owner's Plasma Glow file are preserved.
+Live Navidrome login, a physical phone, official release-date coverage and country
+chart/nationality accuracy are NOT claimed. Media availability still depends on the
+public providers and each recording's normal playback permissions.
+
+PRIVATE DELIVERY
+Original project: C:\Users\Eno\AndroidStudioProjects\MImic
+Only the reviewed integration files are copied back; replaced originals are saved
+privately in this chat workspace under work/home-discovery-original-backup.
+Version changed from private beta.6 to private beta.7.
+Package: com.example.mimic
+Signing certificate SHA-256:
+C03C51075A49A049387185C775626074368AA9F4220EB5BA0E74CC4A4F88087D
+Signed universal and ARM64 APKs, SHA-256 sums, screenshots, source-change archive,
+build/lint and final live-test logs accompany this report. No signing key, cookies,
+passwords or user databases are included. Code/APKs remain local/private.
+No commit, push, GitHub release or publication was performed.
+
+LICENSES
+MImic and existing notices remain GPL-3.0. Native related-song ranking adapts
+Musify's _getRecommendationsFromSeedSongs in lib/services/common_services.dart,
+Copyright (C) 2026 Valeri Gokadze, GPL-3.0-or-later; attribution is retained in source
+and THIRD_PARTY_NOTICES.md. Existing NewPipeExtractor GPL notices and the bundled
+Musify license are retained. Private-use licensing assessment from the previous
+integration still applies; no distribution has been authorized.
+
+
+GITHUB SOURCE PUBLICATION — 2026-11-20
+The owner subsequently authorized pushing these changes to GitHub. The canonical
+repository is Eno-Dev-Tech/MImic (public), on release/4.8.0-beta.7. Earlier private
+build/no-publication notes above describe the state before this authorization.
+Signing keys, credentials, generated APKs, IDE state and scratch files are excluded
+from the source commit. No APK release is part of this source push.
+
+PHONE UPDATER RELEASE — 2026-11-20
+The owner authorized publishing signed APKs after finding that a source-branch push
+alone does not create an updater release. Version 4.8.0 is a standard release for
+both Stable and Beta channels; the canonical update repository is Eno-Dev-Tech/MImic.
+The old repository API URL was verified to redirect anonymously with HTTP 200.
+Publishing uses scripts/release.sh with checksums, original signing key and named ABI assets.
+
+PHONE UPDATER VERIFICATION — 2026-11-20
+Published https://github.com/Eno-Dev-Tech/MImic/releases/tag/v4.8.0 as GitHub's
+latest standard release, with all five signed APKs, checksums and SBOM.
+Release script dry-run and publish checks passed, including tests, lint and gate.
+Verified anonymous old repository redirect and all public APK URLs.
+On emulator-5554, beta.7's Stable updater found 4.8.0, downloaded and verified its
+published x86_64 APK, then installed through Android's update confirmation.
+Installed 4.8.0/build400800099 retained original firstInstallTime, 48 local tracks,
+existing playlists, remembered queue and Black & Orange theme. No data clear.
+Physical phone has not been tested. Release signing identity/package unchanged.
+FELT UPDATE RECOVERY AND RELEASE VALIDATION - 2026-11-26
+Recovered from the owner-approved local mimic-felt.patch, SHA-256
+1E17532F9C0B21C92C39F9B96414D321992AA4990A603521EC74CCD336954BF8.
+Commit 24ad57d was unavailable; no claim of recovering that exact Git object.
+Verified the patch was absent in the Windows checkout and passed git apply --check
+in a clean worktree based on 6181a3a before applying it.
+Version: 4.8.1-beta.1; derived versionCode 400800134; GitHub pre-release.
+Includes Felt Classic, Felt Orange, Sliding Pill, Liquid Bulge, Floating Notch,
+Icon Fill, Expanding Label, Bubble Float, live preview and Felt tactile surfaces.
+PASS: Full unit suite 359 tests (356 passed, 3 skipped); Standard 237 (236 passed,
+1 skipped); no unit failures/errors. Full release lint and both signed builds passed.
+PASS: Pixel_10a Android 17, x86_64, 16 KB pages: 14 instrumented regression tests,
+including all 72 destination selections across six styles and both Felt palettes.
+Live Home discovery was not enabled; its assumption was skipped (the device XML
+represents AssumptionViolatedException as a failure, while Gradle reports success).
+The connected-test runner removed the app at cleanup. Restored default_boot with
+its original swiftshader renderer, recovering beta.5 and original firstInstallTime
+2026-10-17 19:29:42. Reinstalled the signed release with adb install -r; verified
+10 songs, 7 phone tracks, 3 Navidrome entries and 5 downloads match the baseline.
+Future emulator tests should use direct adb instrumentation to preserve the app.
+PASS: scripts/release.sh dry run; Gitleaks, OSV (345 dependencies, 0 blocking),
+merged manifests and all five APK signing/package/version checks passed.
+Signing certificate unchanged: C03C51075A49A049387185C775626074368AA9F4220EB5BA0E74CC4A4F88087D.
+Android Studio was not opened. Physical devices, live account/server access and
+native ffmpeg downloader operation on the 16 KB Pixel were not tested.
+FELT PUBLICATION VERIFICATION - 2026-11-26
+Published https://github.com/Eno-Dev-Tech/MImic/releases/tag/v4.8.1-beta.1
+as a non-draft pre-release, tagged at b3b2757, on release/4.8.1-beta.1.
+All five signed APKs, SHA256SUMS.txt and CycloneDX SBOM are public/downloadable.
+Downloaded the universal APK anonymously from the public release URL; its SHA-256
+9CCFF518A1DC058985DFEF8CF82394A4E46D0C00E83DE91D9D694275BF8309D0
+matches the local release and Desktop/MImic-Releases/MImic-v4.8.1-beta.1-signed.apk.
+Verified the downloaded APK's pinned signing certificate and installed that exact
+public artifact on Pixel_10a with adb install -r. Cold launch succeeded; package,
+versionCode 400800134, versionName 4.8.1-beta.1 and original firstInstallTime retained.
+Manually applied both Felt themes and verified stitched Auto navigation and its
+live preview. Felt Orange / Auto survived a cold launch. Screenshots and test/build
+logs remain in the earlier session's outputs directory. The updater's Android
+installer flow was not exercised; public release download and direct update were.
+
+PERMANENT BLA AND RECOVERY INTEGRATION - 2026-11-27 (IN PROGRESS)
+Continue existing Felt changes; no source reset or replacement signing identity.
+Worktree: MImic-bla, branch security/bla-integration. Beta.2 remains an internal
+validation fixture; planned public version beta.3 has derived versionCode 400800136.
+Official BLA source qybaihe/bla at dd9e72f53ad97e3eb228523ad25295029107bb63,
+npm bla-agents 3.6.1 pinned with lockfile/integrity, MIT. Node 24.19.0.
+Reviewed the six upstream skill Markdown files before pinned Codex/VS Code setup.
+Mutable @latest and broad weaving recipes are overridden by owner/project rules.
+Local MCP doctor/handshake passed. GUI client reload was not tested.
+Production Gradle APK artifacts now require R8 then every-DEX BLA stealth processing,
+independent checksum/trailer and original-byte validation, SDK dexdump and resource/
+native preservation, zipalign and original-key signing. Publication requires final
+signed hashes to match emulator tests. No bypass switch. Debug stays ordinary.
+Honest limitation: this BLA mode appends removable inert decoy text; class/type/
+string tables and method bodies are unchanged. It adds no method encryption or
+demonstrated JADX resistance. R8 provides the actual optimization/obfuscation.
+Fixed R8's missing Firestore geographic/status types by retaining required Firebase
+well-known types while stripping only duplicate protobuf classes. Added device and
+unit round-trip coverage. No broad missing-class suppression.
+Theme removal is persistent stable-ID hiding only. Active removal selects a safe
+visible fallback; final visible theme cannot be removed; no source/custom rows deleted.
+Recovery & Repair offers offline restoration, official compatible protected repair
+(same version only on explicit request, never downgrade), and allowlisted preference
+reset. Reset pauses playback/cancels sleep timer; preserves credentials/accounts,
+servers, custom themes, queue, playlists, favorites, history, downloads and files.
+No caches or personal repositories are cleared. Interrupted transfers discard partial
+files. Cached installer retries repeat checksum/package/version/certificate/BLA checks.
+PASS before final version bump: 369 Full + 245 Standard unit tests, 4 total skipped,
+0 failures; debug compile/build and first lint passed. All 8 pipeline refusal tests
+passed. Direct Android instrumentation: 17 tests passed; owned snapshot restored;
+no connected-test cleanup, uninstall, clear-data or downgrade.
+Internal beta.2 fixture: removed active Felt Orange through UI confirmation; changed
+to Classic Music Dark and retained firstInstallTime 2026-10-17 19:29:42. This fixture
+is for a real higher-version hidden-preference upgrade test on final beta.3.
+Final production build, final-APK recovery/playback/upgrade gate, security gate,
+comparison measurements, publication and live GitHub repair are still pending.
+Physical ARM hardware, live credentials/Navidrome/account flows and native ffmpeg on
+the Pixel_10a 16 KB emulator are not covered. Android Studio has not been opened.
+RESUMED DEVELOPMENT - 2026-11-27 (VALIDATION IN PROGRESS)
+Continued the clean MImic-bla security/bla-integration checkout at 785af7b.
+No Cline modifications, new project, branch merge or source reset. GitHub checked:
+canonical Eno-Dev-Tech/MImic remains PUBLIC; newest prerelease beta.1. Beta.3
+(400800136) is still unpublished and is the next candidate; no version reused.
+Implemented missing Theme Studio Restore All Themes, confirmed Reset Appearance
+Settings, Recovery & Repair shortcut and the existing shared navigation picker/
+interactive preview. Appearance reset now restores hidden/default themes and its
+explicit appearance keys atomically, pauses playback and cancels the sleep timer.
+Other preferences, personal stores and original signing configuration are retained.
+Added an isolated DataStore preservation regression. The final-APK recovery runner
+also checks the new Studio actions and six navigation styles, and captures fresh
+PNG/XML pairs in unique per-run folders so earlier failure evidence is retained.
+Baseline dry run passed both unit suites, 17 direct Android tests and release lint.
+After the changes, Kotlin/instrumentation compilation and both unit suites pass:
+Full 369 tests (3 skipped), Standard 245 (1 skipped), zero failures/errors.
+Final debug lint, protected build, emulator recovery and security validation remain
+in progress; these unit results alone do not establish release readiness.
+Saved owner emulator snapshot mimic_resume_owner_20261127, then deliberately loaded
+mimic_hidden_beta2_20261127 for real beta.2 -> beta.3 upgrade testing. Confirmed
+400800135 and firstInstallTime 2026-10-17 19:29:42. No uninstall/data clear/downgrade
+installation. Existing prior failure logs remain under build/bla.
+No push or publication is authorized before the owner's review and approval.
+BLA remains pinned 3.6.1 stealth trailer text; no additional method encryption or
+proven JADX resistance. No source weaving or protection bypass was introduced.
+
+2026-11-28 release checkpoint continuation (4.8.1-beta.3)
+Existing five signed staged APKs retained; no rebuild performed. Final standalone security gate PASS: secrets, 345 resolved dependencies / 23 reviewed advisories / zero blocking, both release manifests and all five original-key signers. Python evidence/refusal tests: 28 PASS.
+The clipped Classic-row test-driver fix passed immediate selection and cold-launch persistence. Its first probe stopped at the app's Compose popup title; the targeted retry passed after recognizing that title with MImic focused. Owned probe snapshot restored and retained.
+Final exact-hash emulator gate is running from deliberately restored saved beta.2 hidden-theme baseline. x86_64, Standard and Full installations, ART compilation, theme preservation and six destinations passed; Standard and Full local/background/lock-screen playback passed. Complete recovery receipt remains pending. No commit, push, merge or publication yet. Owner explicitly authorized those actions after mandatory gates pass.
+
+2026-11-28 final prepublication gates: PASS. No APK rebuild in this continuation. Five hashes match staged protection report. Exact-hash emulator receipt passed all recovery flags, all six styles, 36 style/destination selections, Classic persistence, Standard/Full playback, ART, same-version reinstall, real reboot and beta.2-to-beta.3 upgrade (400800135 to 400800136), preserving firstInstallTime 2026-10-17 19:29:42. Thirty themes removed individually; final visible theme protected. Offline restore, both reset flows, visible downloads/favorites and Studio recovery shortcut passed. Security gate PASS. Original owner snapshot restored; Plasma Glow and install record preserved; installed final universal hash 1f74e5ab21689aa17a8cadc3646cb3b3c5ea2d9a5d5718cfe4a9cc8e6c7f88d5. Evidence: dist/emulator-verification.json; build/bla/resume-final-exact-emulator.log; build/bla/resume-owner-restored.json. Publication and live official OTA/repair follow this committed checkpoint. No additional BLA/JADX resistance demonstrated.

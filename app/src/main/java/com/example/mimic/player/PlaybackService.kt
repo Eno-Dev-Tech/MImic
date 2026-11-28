@@ -45,6 +45,7 @@ class PlaybackService : MediaSessionService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var positionTicker: Job? = null
     private var effects: PlaybackEffects? = null
+    private var sponsorBlock: SponsorBlock? = null
     /** Listen Together (4.5): binds the party to this player; idle outside a party. */
     private var partySync: PartySync? = null
 
@@ -77,6 +78,7 @@ class PlaybackService : MediaSessionService() {
         com.example.mimic.party.ListenTogether.init(this)
         val sync = PartySync(scope) { player }.also { it.start() }
         partySync = sync
+        sponsorBlock = SponsorBlock(this, player, scope, container.settingsRepository.settings) { sync.inParty }
         mediaSession = MediaSession.Builder(this, PartyPlayer(player, sync))
             .setCallback(sessionCallback())
             // Notification / lock-screen artwork: per-track art for phone songs (4.1), cached.
@@ -220,6 +222,8 @@ class PlaybackService : MediaSessionService() {
         mediaSession
 
     override fun onDestroy() {
+        sponsorBlock?.release()
+        sponsorBlock = null
         partySync?.stop()
         partySync = null
         effects?.release()

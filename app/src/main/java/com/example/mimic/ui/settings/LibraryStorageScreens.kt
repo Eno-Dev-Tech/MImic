@@ -1,5 +1,7 @@
 package com.example.mimic.ui.settings
 
+import com.example.mimic.ui.components.MimicSwitch
+import com.example.mimic.ui.designsystem.depthPanel
 import android.app.Application
 import android.net.Uri
 import androidx.activity.compose.BackHandler
@@ -32,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -145,7 +146,7 @@ private fun n(count: Int, one: String, many: String = one + "s") = "$count ${if 
 
 
 @Composable
-fun BackupRestoreScreen(player: PlayerViewModel, onBack: () -> Unit) {
+fun BackupRestoreScreen(player: PlayerViewModel, onBack: () -> Unit, onImportPlaylist: () -> Unit = {}) {
     BackHandler(onBack = onBack)
     val vm: BackupViewModel = viewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -157,6 +158,11 @@ fun BackupRestoreScreen(player: PlayerViewModel, onBack: () -> Unit) {
 
     LazyColumn(Modifier.fillMaxSize()) {
         item { Header("Backup & Restore", onBack) }
+        item {
+            OutlinedButton(onClick = onImportPlaylist, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                Text("Import Spotify / playlist CSV…")
+            }
+        }
         item {
             Note("A backup is one file with your favorites, playlists, listening history, custom themes, settings and radio countries & stations. " +
                 "It never contains music files, downloads or passwords. Keep it anywhere the file picker can reach — the phone, an SD card or a cloud app.")
@@ -275,8 +281,7 @@ fun LibraryStorageScreen(player: PlayerViewModel, onBack: () -> Unit) {
         if (folders.isEmpty()) item { Note("No phone music found yet.") }
         items(folders, key = { it.path }) { f ->
             Row(
-                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp).clip(RoundedCornerShape(16.dp))
-                    .background(c.surfaceVariant.copy(alpha = 0.5f)).padding(horizontal = 12.dp, vertical = 6.dp),
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 3.dp).depthPanel(RoundedCornerShape(16.dp), c.surfaceVariant.copy(alpha = 0.5f), elevation = 4.dp).padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Icon(if (f.excluded) Icons.Default.FolderOff else Icons.Default.Folder, null, tint = if (f.excluded) c.onSurfaceVariant else c.primary)
@@ -285,7 +290,7 @@ fun LibraryStorageScreen(player: PlayerViewModel, onBack: () -> Unit) {
                     Text(f.name, style = MaterialTheme.typography.bodyLarge, color = c.onSurface, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text("${f.path} · ${f.songCount} songs", style = MaterialTheme.typography.bodySmall, color = c.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Switch(
+                MimicSwitch(
                     checked = !f.excluded,
                     onCheckedChange = { show ->
                         val set = if (show) config.excludedFolders.filterNot { com.example.mimic.data.LibraryScan.normalize(it).equals(f.path, true) }.toSet()

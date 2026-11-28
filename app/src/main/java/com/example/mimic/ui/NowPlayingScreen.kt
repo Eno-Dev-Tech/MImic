@@ -41,7 +41,6 @@ import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,6 +65,22 @@ import com.example.mimic.data.fraction
 import com.example.mimic.player.PlayerUiState
 import com.example.mimic.ui.components.AlbumArt
 import com.example.mimic.ui.components.GlassIconButton
+import com.example.mimic.ui.components.DepthIconButton
+import com.example.mimic.ui.components.MimicSlider
+import com.example.mimic.ui.navigation.LocalFelt
+import com.example.mimic.ui.components.PlayerVolumeControl
+import com.example.mimic.ui.designsystem.LocalDepth
+import com.example.mimic.ui.designsystem.depthPanel
+import com.example.mimic.ui.designsystem.matteGrain
+import com.example.mimic.ui.designsystem.mattePlayerBackground
+import com.example.mimic.ui.designsystem.LocalPlasmaGlow
+import com.example.mimic.ui.designsystem.PlasmaGlowBackdrop
+import com.example.mimic.ui.designsystem.plasmaArtworkFrame
+import com.example.mimic.ui.designsystem.plasmaArtworkHalo
+import com.example.mimic.ui.designsystem.PlasmaButton
+import com.example.mimic.ui.player.PlasmaVolumeWave
+import com.example.mimic.ui.designsystem.plasmaSurface
+import com.example.mimic.data.resolvedVolume
 import com.example.mimic.data.ControlStyle
 import com.example.mimic.data.PlayerBackground
 import com.example.mimic.data.resolvedBackground
@@ -111,18 +126,28 @@ fun NowPlayingScreen(
     /** 4.2 radio: country flag of the station, and Reconnect after a stream failure. */
     radioFlag: String? = null,
     onReconnect: () -> Unit = {},
+    controlDeck: Boolean = false,
+    eqEnabled: Boolean = false,
+    onEqEnabledChange: ((Boolean) -> Unit)? = null,
 ) {
     val song = state.currentSong
     // System back collapses (minimizes) the full-screen player — it never gets stuck open.
     BackHandler(onBack = onBack)
     val env = LocalGlass.current
     val glassTheme = env.enabled
-    val background = config.resolvedBackground(glassTheme)
-    val controls = config.resolvedControls(glassTheme)
+    val depthTheme = LocalDepth.current.on
+    val background = config.resolvedBackground(glassTheme, depthTheme)
+    val felt = LocalFelt.current
+    val controls = if (felt || LocalDepth.current.matteAmber) ControlStyle.TACTILE else config.resolvedControls(glassTheme, depthTheme)
+    // 3D controls need a 3D theme to draw; an explicit "3D" choice on a flat theme uses Filled.
+    val tactile = controls == ControlStyle.TACTILE && (depthTheme || felt)
+    val roundTop = controls == ControlStyle.GLASS || tactile
     // The overlay must FULLY occlude whatever is behind it. Gradient / artwork backgrounds are
     // translucent, so they are always layered ON TOP of an opaque base; otherwise the screen
     // underneath bleeds through (the 2.8.4 "Now Playing over the settings page" bug).
-    val gradientOverlay = if (background == PlayerBackground.GRADIENT) {
+    val matteAmber = LocalDepth.current.matteAmber
+    val plasmaGlow = LocalPlasmaGlow.current
+    val gradientOverlay = if (background == PlayerBackground.GRADIENT && !matteAmber && !plasmaGlow) {
         Modifier.background(
             Brush.verticalGradient(
                 listOf(
@@ -145,7 +170,11 @@ fun NowPlayingScreen(
         PlayerLayout.CLASSIC, PlayerLayout.DYNAMIC -> config.artworkSize.fraction()
     }
     val corner = if (config.artworkShape == ArtworkShape.CIRCLE) 1000 else config.artworkShape.cornerDp()
-    val artShape = if (config.artworkShape == ArtworkShape.SQUIRCLE) RoundedRectangle(corner.dp) else null
+    val artShape = when {
+        plasmaGlow -> androidx.compose.foundation.shape.CircleShape
+        config.artworkShape == ArtworkShape.SQUIRCLE -> RoundedRectangle(corner.dp)
+        else -> null
+    }
 
     // Opaque base fills edge-to-edge (behind the system bars for an immersive look); the content
     // Column is inset with systemBarsPadding so the header clears the status bar and the controls
@@ -153,14 +182,15 @@ fun NowPlayingScreen(
     Box(
         Modifier.fillMaxSize()
             .blockTouchesBehind()
-            .background(MaterialTheme.colorScheme.background),
+            .then(if (matteAmber) Modifier.mattePlayerBackground() else Modifier.background(MaterialTheme.colorScheme.background).matteGrain()),
     ) {
     Box(
         Modifier.matchParentSize()
             .then(if (liveGlass) Modifier.layerBackdrop(playerBackdrop) else Modifier)
             .then(gradientOverlay),
     ) {
-        if (background == PlayerBackground.BLURRED_ARTWORK) BlurredArtwork(song)
+        if (!matteAmber && background == PlayerBackground.BLURRED_ARTWORK) BlurredArtwork(song)
+        if (plasmaGlow) PlasmaGlowBackdrop(Modifier.matchParentSize(), state.isPlaying && env.motionScale > 0f)
     }
     CompositionLocalProvider(LocalGlassBackdrop provides if (liveGlass) playerBackdrop else null) {
     Column(
@@ -169,18 +199,25 @@ fun NowPlayingScreen(
     ) {
         // Top bar: Minimize (collapse, keeps playing) + Stop & Close + optional secondary actions.
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            TopAction(controls, Icons.Default.KeyboardArrowDown, "Minimize", onBack)
-            Spacer(Modifier.width(if (controls == ControlStyle.GLASS) 8.dp else 0.dp))
-            TopAction(controls, Icons.Default.Stop, "Stop & close", onStop)
+            TopAction(controls, Icons.Default.KeyboardArrowDown, "Minimize", onBack, tactile)
+            Spacer(Modifier.width(if (roundTop) 8.dp else 0.dp))
+            TopAction(controls, Icons.Default.Stop, "Stop & close", onStop, tactile)
+            val equipment = tactile && LocalDepth.current.equipment
             Text(
-                "Now Playing",
-                style = MaterialTheme.typography.titleSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // Reference 02: small uppercase, widely letter-spaced equipment label.
+                if (equipment) "NOW PLAYING" else "Now Playing",
+                style = if (equipment) MaterialTheme.typography.labelMedium.copy(letterSpacing = androidx.compose.ui.unit.TextUnit(2.5f, androidx.compose.ui.unit.TextUnitType.Sp))
+                else if (tactile) MaterialTheme.typography.titleMedium
+                else MaterialTheme.typography.titleSmall,
+                // Reference 01: a dark serif heading; reference 02: a grey equipment label.
+                color = if (tactile && !equipment) MaterialTheme.colorScheme.onBackground else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
                 textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             // Same width as Minimize + Stop, so the title stays centered.
-            Row(Modifier.width(if (controls == ControlStyle.GLASS) 104.dp else 96.dp), horizontalArrangement = Arrangement.End) { topEndActions() }
+            Row(Modifier.width(if (roundTop) 104.dp else 96.dp), horizontalArrangement = Arrangement.End) { topEndActions() }
         }
 
         if (config.layout == PlayerLayout.COMPACT) Spacer(Modifier.height(12.dp)) else Spacer(Modifier.height(24.dp))
@@ -190,16 +227,29 @@ fun NowPlayingScreen(
         val threshold = with(androidx.compose.ui.platform.LocalDensity.current) { 72.dp.toPx() }
         // The artwork takes what's left after the text + controls, so on a small screen it shrinks
         // instead of pushing the controls and the action row off the bottom.
-        Box(Modifier.weight(1f, fill = false), contentAlignment = Alignment.Center) {
+        Box(Modifier.weight(1f, fill = false).then(if (plasmaGlow) Modifier.padding(vertical = 38.dp) else Modifier), contentAlignment = Alignment.Center) {
         AlbumArt(
             song,
             modifier = Modifier
-                .fillMaxWidth(artworkFraction)
+                .fillMaxWidth(if (plasmaGlow) artworkFraction.coerceIn(.48f, .60f) else artworkFraction)
                 .aspectRatio(1f, matchHeightConstraintsFirst = true)
                 .graphicsLayer {
                     translationX = dragX * 0.6f
                     alpha = 1f - (kotlin.math.abs(dragX) / (threshold * 4)).coerceAtMost(0.4f)
                 }
+                // 3D: the cover sits in a raised frame that casts the style's shadow.
+                .then(
+                    if (plasmaGlow) {
+                        Modifier.plasmaArtworkHalo(state.isPlaying && env.motionScale > 0f).plasmaArtworkFrame(artShape ?: androidx.compose.foundation.shape.RoundedCornerShape(corner.dp))
+                    } else if (tactile) {
+                        val frame = artShape ?: androidx.compose.foundation.shape.RoundedCornerShape(corner.dp)
+                        // Reference 01: the cover sits in a thick raised rim; reference 02: it just casts a shadow.
+                        if (LocalDepth.current.softSurfaces) Modifier.depthPanel(frame, elevation = 12.dp).padding(12.dp)
+                        else Modifier.depthPanel(frame, elevation = 10.dp)
+                    } else {
+                        Modifier
+                    },
+                )
                 .pointerInput(onNext, onPrevious) {
                     detectHorizontalDragGestures(
                         onDragEnd = {
@@ -226,15 +276,18 @@ fun NowPlayingScreen(
                     style = if (config.layout == PlayerLayout.COMPACT) MaterialTheme.typography.titleLarge
                     else MaterialTheme.typography.headlineSmall,
                     fontWeight = env.headerFontWeight,
-                    color = MaterialTheme.colorScheme.onBackground,
+                    // Reference 02's title is a soft light grey, not pure white.
+                    color = if (tactile && LocalDepth.current.equipment) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.86f) else MaterialTheme.colorScheme.onBackground,
                     maxLines = 1,
                     // Long titles scroll slowly instead of being cut off (respecting reduced motion).
                     modifier = if (env.motionScale > 0f) Modifier.basicMarquee(initialDelayMillis = 1500) else Modifier,
                     overflow = if (env.motionScale > 0f) TextOverflow.Clip else TextOverflow.Ellipsis,
                 )
+                val equipmentArtist = tactile && LocalDepth.current.equipment
                 Text(
-                    song?.artist ?: "",
-                    style = MaterialTheme.typography.titleMedium,
+                    if (equipmentArtist) (song?.artist ?: "").uppercase() else song?.artist ?: "",
+                    style = if (equipmentArtist) MaterialTheme.typography.labelLarge.copy(letterSpacing = androidx.compose.ui.unit.TextUnit(2.5f, androidx.compose.ui.unit.TextUnitType.Sp))
+                    else MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -254,6 +307,20 @@ fun NowPlayingScreen(
                     }
                 }
             }
+            if (plasmaGlow) {
+                PlasmaButton(if (state.isCurrentFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    "Like", onToggleFavorite, active = state.isCurrentFavorite, enabled = song != null,
+                    state = if (state.isCurrentFavorite) "Liked" else "Not liked")
+            } else if (tactile) {
+                DepthIconButton(
+                    if (state.isCurrentFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = "Like",
+                    onClick = onToggleFavorite,
+                    enabled = song != null,
+                    selected = state.isCurrentFavorite,
+                    stateDescription = if (state.isCurrentFavorite) "Liked" else "Not liked",
+                )
+            } else {
             IconButton(onClick = onToggleFavorite, enabled = song != null) {
                 Icon(
                     if (state.isCurrentFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
@@ -262,37 +329,65 @@ fun NowPlayingScreen(
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            }
         }
 
         Spacer(Modifier.height(if (config.layout == PlayerLayout.COMPACT) 8.dp else 16.dp))
-        if (controls == ControlStyle.GLASS) {
-            // One frosted control deck holding seek + transport, like a floating glass panel.
+        if (controlDeck) {
+            com.example.mimic.ui.player.ControlDeckPanel(
+                state, onSeek, onPrevious, onPlayPause, onNext, onShuffle, onRepeat,
+                showShuffleRepeat = config.showShuffleRepeat,
+                volumeMode = config.resolvedVolume(ControlStyle.TACTILE),
+                eqEnabled = eqEnabled,
+                onEqEnabledChange = onEqEnabledChange,
+                hapticSeek = hapticSeek,
+            ) {
+                com.example.mimic.ui.radio.LiveRow(state, radioFlag, MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.error, onReconnect)
+            }
+        } else if (controls == ControlStyle.GLASS || tactile) {
+            // One control deck holding seek + transport: frosted glass, or a raised 3D console.
             Column(
                 Modifier
                     .fillMaxWidth()
-                    .glassSurface(env.style.surfaceShape(1.1f), fallback = MaterialTheme.colorScheme.surfaceVariant)
+                    .then(
+                        if (tactile) Modifier.depthPanel(env.style.surfaceShape(1.1f), elevation = 8.dp)
+                        else Modifier.glassSurface(env.style.surfaceShape(1.1f), fallback = MaterialTheme.colorScheme.surfaceVariant),
+                    )
                     .padding(horizontal = 14.dp, vertical = 12.dp),
             ) {
                 if (state.isLive) com.example.mimic.ui.radio.LiveRow(state, radioFlag, MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.error, onReconnect)
                 else SeekBar(state, onSeek, hapticSeek)
                 Spacer(Modifier.height(4.dp))
-                Controls(state, config, controls, onPlayPause, onNext, onPrevious, onShuffle, onRepeat)
+                Controls(state, config, if (tactile) ControlStyle.TACTILE else controls, onPlayPause, onNext, onPrevious, onShuffle, onRepeat)
             }
         } else {
             if (state.isLive) com.example.mimic.ui.radio.LiveRow(state, radioFlag, MaterialTheme.colorScheme.onBackground, MaterialTheme.colorScheme.onSurfaceVariant, MaterialTheme.colorScheme.error, onReconnect)
             else SeekBar(state, onSeek, hapticSeek)
             Spacer(Modifier.height(8.dp))
-            Controls(state, config, controls, onPlayPause, onNext, onPrevious, onShuffle, onRepeat)
+            Controls(state, config, if (controls == ControlStyle.TACTILE) ControlStyle.FILLED else controls, onPlayPause, onNext, onPrevious, onShuffle, onRepeat)
         }
 
         if (config.showSecondaryActions) {
             Spacer(Modifier.height(if (config.layout == PlayerLayout.COMPACT) 8.dp else 16.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                BottomAction(Icons.Default.Lyrics, "Lyrics", onOpenLyrics)
-                BottomAction(Icons.Default.Speed, com.example.mimic.ui.player.formatSpeed(speed), onOpenSpeed, highlighted = speed != 1f, description = "Playback speed")
-                BottomAction(Icons.Default.Bedtime, if (sleepActive) "Sleep on" else "Sleep", onOpenSleep, highlighted = sleepActive, description = "Sleep timer")
-                BottomAction(Icons.AutoMirrored.Filled.QueueMusic, "Queue", onOpenQueue)
+                BottomAction(Icons.Default.Lyrics, "Lyrics", onOpenLyrics, tactile = tactile)
+                BottomAction(Icons.Default.Speed, com.example.mimic.ui.player.formatSpeed(speed), onOpenSpeed, highlighted = speed != 1f, description = "Playback speed", tactile = tactile)
+                BottomAction(Icons.Default.Bedtime, if (sleepActive) "Sleep on" else "Sleep", onOpenSleep, highlighted = sleepActive, description = "Sleep timer", tactile = tactile)
+                BottomAction(Icons.AutoMirrored.Filled.QueueMusic, "Queue", onOpenQueue, tactile = tactile)
             }
+        }
+
+        // 4.8: the phone's media volume as a rotary dial (or slider). Radio's live row has its own.
+        val volumeMode = config.resolvedVolume(if (tactile) ControlStyle.TACTILE else controls)
+        if (plasmaGlow && !state.isLive && config.volumeControl != com.example.mimic.data.VolumeControl.OFF) {
+            Spacer(Modifier.height(12.dp))
+            PlasmaVolumeWave()
+        } else if (!plasmaGlow && !controlDeck && volumeMode != null && !state.isLive) {
+            val volume = com.example.mimic.player.rememberMediaVolume()
+            // Short screens get the slim slider so the artwork keeps its room.
+            val roomy = androidx.compose.ui.platform.LocalConfiguration.current.screenHeightDp >= 680
+            Spacer(Modifier.height(if (config.layout == PlayerLayout.COMPACT) 6.dp else 10.dp))
+            PlayerVolumeControl(volume, dial = volumeMode == com.example.mimic.data.VolumeControl.DIAL && roomy, haptics = hapticSeek)
         }
 
         if (config.layout == PlayerLayout.IMMERSIVE) Spacer(Modifier.height(24.dp))
@@ -301,10 +396,14 @@ fun NowPlayingScreen(
     }
 }
 
-/** Top-bar action: a glass circle on glass control style, else the original plain icon button. */
+/** Top-bar action: a glass or 3D circle on those control styles, else the plain icon button. */
 @Composable
-private fun TopAction(style: ControlStyle, icon: ImageVector, label: String, onClick: () -> Unit) {
-    if (style == ControlStyle.GLASS) {
+private fun TopAction(style: ControlStyle, icon: ImageVector, label: String, onClick: () -> Unit, tactile: Boolean = false) {
+    if (LocalPlasmaGlow.current) {
+        PlasmaButton(icon, label, onClick)
+    } else if (tactile) {
+        DepthIconButton(icon, label, onClick, size = 48.dp, iconSize = 22.dp)
+    } else if (style == ControlStyle.GLASS) {
         GlassIconButton(icon, label, onClick, size = 48.dp, iconSize = 22.dp)
     } else {
         IconButton(onClick = onClick) { Icon(icon, contentDescription = label) }
@@ -354,12 +453,22 @@ private fun Controls(
     onShuffle: () -> Unit,
     onRepeat: () -> Unit,
 ) {
+    if (LocalPlasmaGlow.current) {
+        PlasmaTransport(state, config.showShuffleRepeat, onPrevious, onPlayPause, onNext, onShuffle, onRepeat)
+        return
+    }
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        if (config.showShuffleRepeat) {
+        val tactile = style == ControlStyle.TACTILE
+        if (config.showShuffleRepeat && tactile) {
+            DepthIconButton(
+                Icons.Default.Shuffle, "Shuffle", onShuffle, size = 44.dp, iconSize = 20.dp,
+                selected = state.shuffle, stateDescription = if (state.shuffle) "On" else "Off",
+            )
+        } else if (config.showShuffleRepeat) {
             IconButton(onClick = onShuffle) {
                 Icon(
                     Icons.Default.Shuffle,
@@ -372,6 +481,13 @@ private fun Controls(
         val playIcon = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow
         val playLabel = if (state.isPlaying) "Pause" else "Play"
         when (style) {
+            ControlStyle.TACTILE -> {
+                // Reference 02: lit glyphs either side of a big matte play knob.
+                val bare = LocalDepth.current.equipment
+                DepthIconButton(Icons.Default.SkipPrevious, "Previous", onPrevious, size = 56.dp, iconSize = if (bare) 36.dp else 30.dp, bare = bare)
+                DepthIconButton(playIcon, playLabel, onPlayPause, size = if (bare) 84.dp else 76.dp, iconSize = 40.dp, accent = true)
+                DepthIconButton(Icons.Default.SkipNext, "Next", onNext, size = 56.dp, iconSize = if (bare) 36.dp else 30.dp, bare = bare)
+            }
             ControlStyle.GLASS -> {
                 GlassIconButton(Icons.Default.SkipPrevious, "Previous", onPrevious, size = 56.dp, iconSize = 32.dp)
                 GlassIconButton(playIcon, playLabel, onPlayPause, size = 76.dp, iconSize = 40.dp, accent = true)
@@ -412,7 +528,18 @@ private fun Controls(
                 }
             }
         }
-        if (config.showShuffleRepeat) {
+        if (config.showShuffleRepeat && tactile) {
+            val repeatOn = state.repeatMode != Player.REPEAT_MODE_OFF
+            DepthIconButton(
+                if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                "Repeat", onRepeat, size = 44.dp, iconSize = 20.dp, selected = repeatOn,
+                stateDescription = when (state.repeatMode) {
+                    Player.REPEAT_MODE_ONE -> "Repeat one"
+                    Player.REPEAT_MODE_ALL -> "Repeat all"
+                    else -> "Off"
+                },
+            )
+        } else if (config.showShuffleRepeat) {
             IconButton(onClick = onRepeat) {
                 Icon(
                     if (state.repeatMode == Player.REPEAT_MODE_ONE) Icons.Default.RepeatOne
@@ -427,10 +554,53 @@ private fun Controls(
     }
 }
 
+@Composable
+internal fun PlasmaTransport(
+    state: PlayerUiState,
+    showShuffleRepeat: Boolean,
+    onPrevious: () -> Unit,
+    onPlayPause: () -> Unit,
+    onNext: () -> Unit,
+    onShuffle: () -> Unit,
+    onRepeat: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().plasmaSurface(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (showShuffleRepeat) {
+            PlasmaButton(Icons.Default.Shuffle, "Shuffle", onShuffle, iconSize = 19.dp,
+                active = state.shuffle, state = if (state.shuffle) "On" else "Off")
+        }
+        PlasmaButton(Icons.Default.SkipPrevious, "Previous", onPrevious, iconSize = 26.dp)
+        PlasmaButton(if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+            if (state.isPlaying) "Pause" else "Play", onPlayPause, size = 66.dp, iconSize = 34.dp, active = true)
+        PlasmaButton(Icons.Default.SkipNext, "Next", onNext, iconSize = 26.dp)
+        if (showShuffleRepeat) {
+            val repeatOne = state.repeatMode == Player.REPEAT_MODE_ONE
+            val repeatOn = state.repeatMode != Player.REPEAT_MODE_OFF
+            PlasmaButton(if (repeatOne) Icons.Default.RepeatOne else Icons.Default.Repeat,
+                "Repeat", onRepeat, iconSize = 19.dp, active = repeatOn,
+                state = if (repeatOne) "Repeat one" else if (repeatOn) "Repeat all" else "Off")
+        }
+    }
+}
+
 /** Labeled icon action under the controls. */
 @Composable
-private fun BottomAction(icon: ImageVector, label: String, onClick: () -> Unit, highlighted: Boolean = false, description: String = label) {
+private fun BottomAction(icon: ImageVector, label: String, onClick: () -> Unit, highlighted: Boolean = false, description: String = label, tactile: Boolean = false) {
     val tint = if (highlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+    if (tactile || LocalPlasmaGlow.current) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            if (LocalPlasmaGlow.current) PlasmaButton(icon, description, onClick, iconSize = 20.dp, active = highlighted)
+            else DepthIconButton(icon, description, onClick, size = 44.dp, iconSize = 20.dp, selected = highlighted)
+            Spacer(Modifier.height(4.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = tint, maxLines = 1)
+        }
+        return
+    }
     Column(
         Modifier.clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp)).clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 6.dp)
@@ -443,7 +613,7 @@ private fun BottomAction(icon: ImageVector, label: String, onClick: () -> Unit, 
 }
 
 @Composable
-private fun SeekBar(state: PlayerUiState, onSeek: (Long) -> Unit, haptic: Boolean = true) {
+internal fun SeekBar(state: PlayerUiState, onSeek: (Long) -> Unit, haptic: Boolean = true) {
     val haptics = androidx.compose.ui.platform.LocalHapticFeedback.current
     var dragging by remember { mutableStateOf(false) }
     var dragValue by remember { mutableStateOf(0f) }
@@ -451,7 +621,7 @@ private fun SeekBar(state: PlayerUiState, onSeek: (Long) -> Unit, haptic: Boolea
     val position = if (dragging) dragValue else state.positionMs.toFloat().coerceIn(0f, duration)
 
     Column(Modifier.fillMaxWidth()) {
-        Slider(
+        MimicSlider(
             value = position,
             onValueChange = { dragging = true; dragValue = it },
             onValueChangeFinished = {
@@ -460,6 +630,7 @@ private fun SeekBar(state: PlayerUiState, onSeek: (Long) -> Unit, haptic: Boolea
                 if (haptic) haptics.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
             },
             valueRange = 0f..duration,
+            modifier = Modifier.semantics { contentDescription = "Seek" },
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.onBackground,
                 activeTrackColor = MaterialTheme.colorScheme.onBackground,

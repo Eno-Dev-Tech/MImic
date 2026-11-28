@@ -34,7 +34,10 @@ fi
 echo "==> Dependencies (OSV)"
 ./gradlew -q --no-configuration-cache :app:dependencies --configuration fullReleaseRuntimeClasspath > "$OUT/deps-full.txt" 2>&1
 ./gradlew -q --no-configuration-cache :app:dependencies --configuration standardReleaseRuntimeClasspath > "$OUT/deps-standard.txt" 2>&1
-if PYTHONIOENCODING=utf8 "$PY" -I scripts/security/osv_gradle.py "$OUT/deps-full.txt" "$OUT/deps-standard.txt" --allow scripts/security/osv-allowlist.txt --json "$OUT/osv.json" --sbom "$OUT/sbom.cdx.json" > "$OUT/osv.txt" 2>&1; then
+# The reviewed stripped Firebase JAR is a file dependency at runtime; retain its
+# original Maven identity in the vulnerability inventory and SBOM as well.
+./gradlew -q --no-configuration-cache :app:dependencies --configuration firebaseWellKnownRaw > "$OUT/deps-firebase-well-known.txt" 2>&1
+if PYTHONIOENCODING=utf8 "$PY" -I scripts/security/osv_gradle.py "$OUT/deps-full.txt" "$OUT/deps-standard.txt" "$OUT/deps-firebase-well-known.txt" --allow scripts/security/osv-allowlist.txt --json "$OUT/osv.json" --sbom "$OUT/sbom.cdx.json" > "$OUT/osv.txt" 2>&1; then
   mark dependencies PASS
 else
   mark dependencies FAIL

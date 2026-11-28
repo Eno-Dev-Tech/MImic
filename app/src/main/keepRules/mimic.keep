@@ -1,0 +1,14 @@
+# Keep generic types and annotations needed by reflection-based JSON libraries.
+-keepattributes Signature,InnerClasses,EnclosingMethod,RuntimeVisibleAnnotations,AnnotationDefault
+
+# The manifest's Android entry points and dependency consumer rules are included
+# by AGP. Do not keep the whole app or disable shrinking/optimization/obfuscation.
+
+# Rhino's optional desktop JavaBeans converter / JSR-223 service are unavailable
+# on Android. MImic/NewPipe use the direct Rhino/QuickJS APIs, not these adapters.
+-dontwarn java.beans.BeanDescriptor
+-dontwarn java.beans.BeanInfo
+-dontwarn java.beans.IntrospectionException
+-dontwarn java.beans.Introspector
+-dontwarn java.beans.PropertyDescriptor
+-dontwarn javax.script.ScriptEngineFactory

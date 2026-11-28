@@ -20,18 +20,25 @@ internal object UpdateVerification {
         installedCerts: Set<String>,
         trustedCert: String,
         releasesPage: String,
+        allowSameVersion: Boolean = false,
+        archiveVersionName: String? = null,
+        expectedVersionName: String? = null,
     ): Failure? {
         // It is this app (never another package that happens to be in the release).
         if (archivePackage != installedPackage) {
             return Failure("Wrong app", "the APK is $archivePackage, not $installedPackage.", "package mismatch")
         }
         // Newer versionCode (what Android compares) — never a downgrade or reinstall.
-        if (archiveVersionCode <= installedVersionCode) {
+        if (archiveVersionCode < installedVersionCode || (!allowSameVersion && archiveVersionCode == installedVersionCode)) {
             return Failure(
                 "Not newer",
                 "the APK's versionCode ($archiveVersionCode) isn't higher than the installed one ($installedVersionCode).",
                 "archive $archiveVersionCode <= installed $installedVersionCode",
             )
+        }
+        if (expectedVersionName != null && (archiveVersionName != expectedVersionName ||
+                archiveVersionCode != AppVersion.versionCodeFor(expectedVersionName).toLong())) {
+            return Failure("Wrong version", "the APK doesn't match the official release version.", "release and APK version mismatch")
         }
         // Authenticity: signed by exactly the pinned release certificate…
         if (trustedCert.length != 64 || archiveCerts != setOf(trustedCert.lowercase())) {

@@ -1,5 +1,10 @@
 package com.example.mimic.ui.player
 
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.ui.draw.drawBehind
+import com.example.mimic.ui.designsystem.matteGrain
+import com.example.mimic.ui.components.MimicSlider
+import com.example.mimic.ui.components.MimicSwitch
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -40,8 +45,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -100,7 +103,7 @@ fun SpeedSheet(vm: PlayerViewModel, onDismiss: () -> Unit) {
         Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, bottom = 32.dp)) {
             Text("Playback speed", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text(speedLabel(slider), style = MaterialTheme.typography.displaySmall, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(vertical = 8.dp))
-            Slider(
+            MimicSlider(
                 value = slider,
                 onValueChange = { slider = (it * 20).roundToInt() / 20f },
                 onValueChangeFinished = { vm.setSpeed(slider) },
@@ -117,7 +120,7 @@ fun SpeedSheet(vm: PlayerViewModel, onDismiss: () -> Unit) {
                     Text("Keep original pitch")
                     Text("Off = faster sounds higher, like speeding up a tape", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                Switch(checked = audio.keepPitch, onCheckedChange = { vm.setAudio(audio.copy(keepPitch = it)) })
+                MimicSwitch(checked = audio.keepPitch, onCheckedChange = { vm.setAudio(audio.copy(keepPitch = it)) })
             }
             Text("Applies to every song until you change it back.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
         }
@@ -190,10 +193,22 @@ fun QueueSheet(vm: PlayerViewModel, onDismiss: () -> Unit) {
     var dragOffset by remember { mutableFloatStateOf(0f) }
     var rowPx by remember { mutableFloatStateOf(0f) }
 
+    // Black & Orange (reference 02's "Shuffle playlist" panel): matte chassis, spaced uppercase
+    // labels, dark slab rows with separators and an orange-lit marker on the playing song.
+    val equipment = com.example.mimic.ui.designsystem.LocalDepth.current.equipment
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.fillMaxWidth().fillMaxHeight(0.9f)) {
+        Column(Modifier.fillMaxWidth().fillMaxHeight(0.9f).then(if (equipment) Modifier.matteGrain() else Modifier)) {
             Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Queue", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                if (equipment) {
+                    Text(
+                        "QUEUE",
+                        style = MaterialTheme.typography.labelLarge.copy(letterSpacing = androidx.compose.ui.unit.TextUnit(3f, androidx.compose.ui.unit.TextUnitType.Sp)),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    Text("Queue", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                }
                 IconButton(onClick = { saveAs = true }, enabled = queue.isNotEmpty()) {
                     Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = "Save queue as playlist")
                 }
@@ -208,8 +223,8 @@ fun QueueSheet(vm: PlayerViewModel, onDismiss: () -> Unit) {
                 itemsIndexed(order, key = { pos, _ -> "q$pos" }) { pos, original ->
                     val song = queue.getOrNull(original) ?: return@itemsIndexed
                     val isCurrent = original == currentIndex
-                    if (isCurrent) QueueHeader("Now playing")
-                    if (pos == currentIndex + 1) QueueHeader("Up next · ${queue.size - currentIndex - 1}")
+                    if (isCurrent) QueueHeader("Now playing", equipment, lit = true)
+                    if (pos == currentIndex + 1) QueueHeader("Up next · ${queue.size - currentIndex - 1}", equipment)
                     val dragging = dragPos == pos
                     Row(
                         Modifier.fillMaxWidth()
@@ -218,18 +233,35 @@ fun QueueSheet(vm: PlayerViewModel, onDismiss: () -> Unit) {
                             .background(
                                 when {
                                     dragging -> MaterialTheme.colorScheme.surfaceVariant
-                                    isCurrent -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                    isCurrent -> if (com.example.mimic.ui.designsystem.LocalDepth.current.on) androidx.compose.ui.graphics.Color.Transparent else MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                                     else -> androidx.compose.ui.graphics.Color.Transparent
                                 },
                             )
+                            .then(if (equipment && !dragging) Modifier.equipmentRowBand(pos) else Modifier)
                             .onSizeChanged { if (rowPx == 0f) rowPx = it.height.toFloat() },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Box(Modifier.weight(1f)) {
                             SongRow(song = song, onClick = { vm.playQueueItem(original) }, isCurrent = isCurrent, showAlbum = false)
                         }
-                        IconButton(onClick = { vm.removeFromQueue(original) }, enabled = !isCurrent) {
-                            Icon(Icons.Default.Close, contentDescription = "Remove ${song.title} from queue")
+                        if (equipment && isCurrent) {
+                            // Reference 02: the playing row carries an orange-lit play marker.
+                            Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                                com.example.mimic.ui.components.GlowIcon(
+                                    androidx.compose.material.icons.Icons.Filled.PlayArrow,
+                                    if (state.isPlaying) "Playing" else "Paused",
+                                    22.dp,
+                                    dim = !state.isPlaying,
+                                )
+                            }
+                        } else {
+                            IconButton(onClick = { vm.removeFromQueue(original) }, enabled = !isCurrent) {
+                                Icon(
+                                    Icons.Default.Close,
+                                    contentDescription = "Remove ${song.title} from queue",
+                                    tint = if (equipment) MaterialTheme.colorScheme.onSurfaceVariant else androidx.compose.material3.LocalContentColor.current,
+                                )
+                            }
                         }
                         Icon(
                             Icons.Default.DragHandle,
@@ -298,13 +330,31 @@ fun QueueSheet(vm: PlayerViewModel, onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun QueueHeader(text: String) {
+private fun QueueHeader(text: String, equipment: Boolean = false, lit: Boolean = false) {
     Text(
-        text,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.primary,
+        if (equipment) text.uppercase() else text,
+        style = if (equipment) MaterialTheme.typography.labelMedium.copy(letterSpacing = androidx.compose.ui.unit.TextUnit(2.5f, androidx.compose.ui.unit.TextUnitType.Sp))
+        else MaterialTheme.typography.labelLarge,
+        color = if (equipment && !lit) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary,
         modifier = Modifier.fillMaxWidth().padding(start = 24.dp, top = 12.dp, bottom = 4.dp),
     )
+}
+
+/**
+ * Reference 02's playlist slabs: rows alternate between two near-black tones (#141318 / #100F13,
+ * sampled) with a hairline lit edge on top and a dark seam below. Drawn behind the row; static.
+ */
+@Composable
+private fun Modifier.equipmentRowBand(pos: Int): Modifier {
+    val d = com.example.mimic.ui.designsystem.LocalDepth.current
+    val a = androidx.compose.ui.graphics.Color(0xFF16151A)
+    val b = androidx.compose.ui.graphics.Color(0xFF111015)
+    val rim = d.c(d.rimLight)
+    return this.drawBehind {
+        drawRect(if (pos % 2 == 0) a else b)
+        drawLine(rim.copy(alpha = 0.06f), androidx.compose.ui.geometry.Offset(0f, 0.5f), androidx.compose.ui.geometry.Offset(size.width, 0.5f), strokeWidth = 1f)
+        drawLine(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.75f), androidx.compose.ui.geometry.Offset(0f, size.height - 1f), androidx.compose.ui.geometry.Offset(size.width, size.height - 1f), strokeWidth = 2f)
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -328,9 +378,13 @@ fun PlaybackSettingsScreen(vm: PlayerViewModel, onBack: () -> Unit) {
             Text(if (a.crossfadeSec == 0) "Crossfade: off" else "Crossfade: ${a.crossfadeSec} s", style = MaterialTheme.typography.bodyLarge)
             Text("Fades each song out at the end and the next one in. One player, so songs never double up.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             var cf by remember(a.crossfadeSec) { mutableFloatStateOf(a.crossfadeSec.toFloat()) }
-            Slider(value = cf, onValueChange = { cf = it }, onValueChangeFinished = { vm.setAudio(a.copy(crossfadeSec = cf.roundToInt())) }, valueRange = 0f..AudioPrefs.MAX_CROSSFADE_SEC.toFloat(), steps = AudioPrefs.MAX_CROSSFADE_SEC - 1)
+            MimicSlider(value = cf, onValueChange = { cf = it }, onValueChangeFinished = { vm.setAudio(a.copy(crossfadeSec = cf.roundToInt())) }, valueRange = 0f..AudioPrefs.MAX_CROSSFADE_SEC.toFloat(), steps = AudioPrefs.MAX_CROSSFADE_SEC - 1)
         }
         SettingSwitch("Skip silence", "Shortens long silent gaps inside tracks (audiobooks, live recordings).", a.skipSilence) { vm.setAudio(a.copy(skipSilence = it)) }
+        if (com.example.mimic.BuildConfig.HAS_DOWNLOADER) {
+            SettingSwitch("SponsorBlock", "Skip community-marked sponsors, intros, outros and non-music sections in YouTube tracks. Sends video IDs to sponsor.ajay.app when streaming; downloads use cached segments. Disabled during Listen Together.", settings.sponsorBlockEnabled) { vm.setSponsorBlockEnabled(it) }
+            Text("Uses SponsorBlock data from https://sponsor.ajay.app under CC BY-NC-SA 4.0. Musify adaptation: Copyright © 2026 Valeri Gokadze, GPL-3.0-or-later.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp))
+        }
 
         Section("Volume leveling (ReplayGain)")
         Text(
@@ -358,7 +412,7 @@ fun PlaybackSettingsScreen(vm: PlayerViewModel, onBack: () -> Unit) {
                     var v by remember(level) { mutableFloatStateOf(level.toFloat()) }
                     Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(if (hz >= 1000) "${hz / 1000} kHz" else "$hz Hz", modifier = Modifier.width(72.dp), style = MaterialTheme.typography.bodySmall)
-                        Slider(
+                        MimicSlider(
                             value = v, onValueChange = { v = it }, modifier = Modifier.weight(1f),
                             valueRange = info.minLevel.toFloat()..info.maxLevel.toFloat(),
                             onValueChangeFinished = {
@@ -373,7 +427,7 @@ fun PlaybackSettingsScreen(vm: PlayerViewModel, onBack: () -> Unit) {
                     var bb by remember(a.bassBoost) { mutableFloatStateOf(a.bassBoost.toFloat()) }
                     Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Bass boost", modifier = Modifier.width(72.dp), style = MaterialTheme.typography.bodySmall)
-                        Slider(value = bb, onValueChange = { bb = it }, onValueChangeFinished = { vm.setAudio(a.copy(bassBoost = bb.roundToInt())) }, valueRange = 0f..1000f, modifier = Modifier.weight(1f))
+                        MimicSlider(value = bb, onValueChange = { bb = it }, onValueChangeFinished = { vm.setAudio(a.copy(bassBoost = bb.roundToInt())) }, valueRange = 0f..1000f, modifier = Modifier.weight(1f))
                     }
                 }
                 TextButton(onClick = { vm.setAudio(a.copy(eqBands = emptyList(), bassBoost = 0)) }, modifier = Modifier.padding(horizontal = 8.dp)) { Text("Reset to flat") }
@@ -412,6 +466,6 @@ private fun SettingSwitch(title: String, subtitle: String, checked: Boolean, ena
             Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Spacer(Modifier.width(12.dp))
-        Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
+        MimicSwitch(checked = checked, onCheckedChange = onChange, enabled = enabled)
     }
 }

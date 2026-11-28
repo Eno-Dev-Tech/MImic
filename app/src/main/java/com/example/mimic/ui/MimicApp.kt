@@ -52,6 +52,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.mimic.data.NavStyle
 import com.example.mimic.data.Song
+import com.example.mimic.data.resolvedVolume
 import com.example.mimic.data.resolve
 import com.example.mimic.player.PlayerViewModel
 import androidx.compose.animation.animateColorAsState
@@ -80,13 +81,19 @@ import com.example.mimic.ui.library.FavoritesScreen
 import com.example.mimic.ui.library.LibraryScreen
 import com.example.mimic.ui.library.LocalBarPadding
 import com.example.mimic.ui.library.rememberRowEnv
+import com.example.mimic.ui.navigation.AnimatedMimicNavigation
+import com.example.mimic.ui.navigation.MotionPalette
+import com.example.mimic.ui.navigation.forTheme
+import com.example.mimic.ui.navigation.mimicMotionTabs
+import com.example.mimic.ui.navigation.navigationMotion
 import com.example.mimic.ui.navigation.TopLevel
 import com.example.mimic.ui.navigation.TopLevelNavigation
+import com.example.mimic.ui.navigation.ControlDeckNavigation
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 
 @Composable
-private fun BottomBar(navController: NavHostController, navStyle: NavStyle, onReselect: (TopLevel) -> Unit) {
+private fun BottomBar(navController: NavHostController, navStyle: NavStyle, preferredNavStyle: NavStyle, controlDeck: Boolean, themeId: String, onReselect: (TopLevel) -> Unit) {
     // Recompose on every back-stack change; the owning tab is derived from the whole stack, so a
     // pushed screen (Album, Account, ...) keeps its tab highlighted.
     val entry by navController.currentBackStackEntryAsState()
@@ -94,7 +101,27 @@ private fun BottomBar(navController: NavHostController, navStyle: NavStyle, onRe
     val routes = remember(entry) { navController.currentBackStack.value.map { it.destination.route } }
     val owner = TopLevelNavigation.owningTab(routes)
     val goTo: (TopLevel) -> Unit = { tab -> TopLevelNavigation.navigate(navController, tab)?.let(onReselect) }
+    preferredNavStyle.navigationMotion(themeId)?.let { motion ->
+        AnimatedMimicNavigation(
+            tabs = mimicMotionTabs,
+            selectedKey = owner.route,
+            onSelect = { route -> TopLevel.visible.firstOrNull { it.route == route }?.let(goTo) },
+            motion = motion,
+            modifier = Modifier.navigationBarsPadding(),
+            palette = MotionPalette.forTheme(themeId),
+            reduceMotion = LocalGlass.current.motionScale == 0f,
+        )
+        return
+    }
     val compact = navStyle == NavStyle.COMPACT
+    if (com.example.mimic.ui.designsystem.LocalPlasmaGlow.current) {
+        com.example.mimic.ui.navigation.PlasmaNavigation(owner, goTo, compact, Modifier.navigationBarsPadding())
+        return
+    }
+    if (controlDeck) {
+        ControlDeckNavigation(owner, goTo, compact, Modifier.navigationBarsPadding())
+        return
+    }
     if (navStyle == NavStyle.AURA) {
         AuraDock(
             items = auraTabs,
@@ -227,9 +254,10 @@ fun MimicApp(viewModel: PlayerViewModel) {
     val navController = rememberNavController()
     val tabReselect = remember { kotlinx.coroutines.flow.MutableSharedFlow<TopLevel>(extraBufferCapacity = 1) }
     val glassEnv = LocalGlass.current
+    val depthTheme = com.example.mimic.ui.designsystem.LocalDepth.current.on
     val navStyle = settings.homeConfig.navStyle.resolve(
-        themeWantsGlassNav = glassEnv.style.glass && glassEnv.style.pillNav,
-        glassTheme = glassEnv.style.glass,
+        themeWantsGlassNav = (glassEnv.style.glass || depthTheme) && glassEnv.style.pillNav,
+        glassTheme = glassEnv.style.glass || depthTheme,
         themeWantsAura = glassEnv.style.auraNav,
     )
     // Live content layer for backdrop blur/refraction. Only recorded when a glass theme can
@@ -367,7 +395,7 @@ fun MimicApp(viewModel: PlayerViewModel) {
     val overlayOpen = (nowPlayingOpen && uiState.currentSong != null) || editingTheme != null || lockViewOpen
     Scaffold(
         modifier = Modifier.fillMaxSize().then(if (overlayOpen) Modifier.clearAndSetSemantics {} else Modifier),
-        containerColor = if (glassEnv.style.gradientBackground) Color.Transparent else MaterialTheme.colorScheme.background,
+        containerColor = if (glassEnv.style.gradientBackground || com.example.mimic.ui.designsystem.LocalDepth.current.equipment) Color.Transparent else MaterialTheme.colorScheme.background,
         bottomBar = {
             Column {
                 val current = uiState.currentSong
@@ -395,7 +423,14 @@ fun MimicApp(viewModel: PlayerViewModel) {
                         compact = compactMini.value,
                     )
                 }
-                BottomBar(navController, navStyle, onReselect = { tabReselect.tryEmit(it) })
+                BottomBar(
+                    navController = navController,
+                    navStyle = navStyle,
+                    preferredNavStyle = settings.homeConfig.navStyle,
+                    controlDeck = ThemeRegistry.usesHardwareControls(settings.themeId),
+                    themeId = settings.themeId,
+                    onReselect = { tabReselect.tryEmit(it) },
+                )
             }
         },
     ) { innerPadding ->
@@ -437,7 +472,10 @@ fun MimicApp(viewModel: PlayerViewModel) {
                 InsetScreen(innerPadding) { com.example.mimic.ui.settings.AccountsScreen(viewModel, onBack = back) }
             }
             composable("settings/backup") {
-                InsetScreen(innerPadding) { com.example.mimic.ui.settings.BackupRestoreScreen(viewModel, onBack = back) }
+                InsetScreen(innerPadding) { com.example.mimic.ui.settings.BackupRestoreScreen(viewModel, onBack = back, onImportPlaylist = { navController.navigate("settings/import-playlist") }) }
+            }
+            composable("settings/import-playlist") {
+                InsetScreen(innerPadding) { com.example.mimic.ui.settings.PlaylistImportScreen(viewModel, onBack = back) }
             }
             composable("settings/advanced") {
                 InsetScreen(innerPadding) {
@@ -499,7 +537,7 @@ fun MimicApp(viewModel: PlayerViewModel) {
                 }
             }
             composable("updates") {
-                InsetScreen(innerPadding) { com.example.mimic.ui.update.AppUpdatesScreen(onBack = back) }
+                InsetScreen(innerPadding) { com.example.mimic.ui.update.AppUpdatesScreen(vm = viewModel, onBack = back) }
             }
 
             // ---- Pushed screens (Back pops them; the owning tab stays highlighted) ----
@@ -561,6 +599,7 @@ fun MimicApp(viewModel: PlayerViewModel) {
                         onShare = shareTheme,
                         onBack = back,
                         onOpenDynamicPlayer = { navController.navigate("playerstudio") },
+                        onOpenRecovery = { navController.navigate("updates") },
                     )
                 }
             }
@@ -627,6 +666,8 @@ fun MimicApp(viewModel: PlayerViewModel) {
         }
     }
 
+    val controlDeck = ThemeRegistry.usesHardwareControls(settings.themeId)
+    val setDeckEq: ((Boolean) -> Unit)? = if (controlDeck && castingTo == null) viewModel::setEqualizerEnabled else null
     if (nowPlayingOpen && uiState.currentSong != null && settings.playerLayout.layout == com.example.mimic.data.PlayerLayout.DYNAMIC) {
         com.example.mimic.ui.dynamic.DynamicNowPlayingScreen(
             vm = viewModel,
@@ -654,6 +695,11 @@ fun MimicApp(viewModel: PlayerViewModel) {
                 radioFlag = viewModel.radioStationFor(uiState.currentSong)?.flag,
             ),
             castButton = { tint -> com.example.mimic.cast.CastButton(tint) },
+            controlDeck = controlDeck,
+            eqEnabled = settings.audio.eqEnabled,
+            onEqEnabledChange = setDeckEq,
+            volumeMode = settings.playerLayout.resolvedVolume(com.example.mimic.data.ControlStyle.TACTILE),
+            hapticSeek = settings.audio.hapticSeek,
         )
     } else if (nowPlayingOpen && uiState.currentSong != null) {
         NowPlayingScreen(
@@ -677,9 +723,18 @@ fun MimicApp(viewModel: PlayerViewModel) {
             hapticSeek = settings.audio.hapticSeek,
             radioFlag = viewModel.radioStationFor(uiState.currentSong)?.flag,
             onReconnect = viewModel::reconnectRadio,
+            controlDeck = controlDeck,
+            eqEnabled = settings.audio.eqEnabled,
+            onEqEnabledChange = setDeckEq,
             topEndActions = {
                 com.example.mimic.cast.CastButton(MaterialTheme.colorScheme.onBackground)
-                IconButton(onClick = { uiState.currentSong?.let(shareSong) }) {
+                if (settings.themeId == ThemeRegistry.PLASMA_GLOW_ID) {
+                    com.example.mimic.ui.designsystem.PlasmaButton(androidx.compose.material.icons.Icons.Default.Share, "Share song", { uiState.currentSong?.let(shareSong) })
+                } else if (settings.themeId == ThemeRegistry.CONTROL_DECK_ID) {
+                    com.example.mimic.ui.components.DepthIconButton(
+                        androidx.compose.material.icons.Icons.Default.Share, "Share song", { uiState.currentSong?.let(shareSong) },
+                    )
+                } else IconButton(onClick = { uiState.currentSong?.let(shareSong) }) {
                     Icon(androidx.compose.material.icons.Icons.Default.Share, contentDescription = "Share song", tint = MaterialTheme.colorScheme.onBackground)
                 }
             },

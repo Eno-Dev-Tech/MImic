@@ -1,5 +1,6 @@
 package com.example.mimic.ui
 
+import com.example.mimic.ui.designsystem.depthPanel
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -62,6 +63,13 @@ fun StatsScreen(vm: PlayerViewModel, onBack: () -> Unit) {
             }
         }
         val s = stats
+        item {
+            Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(0 to "This month", -1 to "This year").forEach { (d, label) ->
+                    FilterChip(selected = days == d, onClick = { vm.statsDays.value = d }, label = { Text(label) })
+                }
+            }
+        }
         if (s == null) {
             item { Box(Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
             return@LazyColumn
@@ -77,7 +85,7 @@ fun StatsScreen(vm: PlayerViewModel, onBack: () -> Unit) {
             }
         }
         item {
-            SectionTitle(if (days == 365) "Plays per day · last year" else "Plays per day · last $days days")
+            SectionTitle(when (days) { 0 -> "This month's recap"; -1 -> "This year's recap"; 365 -> "Plays per day · last year"; else -> "Plays per day · last $days days" })
             PlaysChart(s.playsPerDay)
         }
         if (s.topArtists.isNotEmpty()) {
@@ -113,7 +121,7 @@ private fun formatMinutes(m: Long): String = if (m < 60) "$m min" else "${m / 60
 @Composable
 private fun StatTile(label: String, value: String, modifier: Modifier) {
     Column(
-        modifier.clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)).padding(14.dp),
+        modifier.depthPanel(RoundedCornerShape(16.dp), MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), elevation = 4.dp).padding(14.dp),
     ) {
         Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Text(label, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

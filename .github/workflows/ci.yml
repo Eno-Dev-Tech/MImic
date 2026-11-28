@@ -10,7 +10,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, 'release/**', 'security/bla-integration']
   pull_request:
   workflow_dispatch:
 
@@ -42,7 +42,15 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3.2.2
         with:
-          packages: platform-tools
+          packages: platform-tools build-tools;36.0.0
+
+      - name: Set up pinned Node for BLA
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24.19.0'
+
+      - name: BLA pipeline refusal tests
+        run: python3 -m unittest discover -s tools/bla -p 'test_*.py' -v
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@748248ddd2a24f49513d8f472f81c3a07d4d50e1 # v4.4.4
@@ -61,6 +69,22 @@ jobs:
 
       - name: Debug build (unsigned by any release key)
         run: ./gradlew --no-daemon :app:assembleStandardDebug
+
+      - name: R8 and mandatory BLA release artifact verification (unsigned)
+        run: ./gradlew --no-daemon --no-configuration-cache --max-workers=2 -Dorg.gradle.jvmargs=-Xmx5g :app:assembleFullRelease :app:assembleStandardRelease
+
+      - name: Audit locked BLA dependencies
+        working-directory: tools/bla
+        run: npm audit --omit=dev --audit-level=high
+
+      # Never upload ordinary comparison APKs or the private R8 mappings.
+      - name: BLA protection evidence only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: bla-verification
+          path: app/build/outputs/bla/**/*.bla.json
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Test reports
         if: always()
